@@ -466,30 +466,81 @@ function generarReporteFinanciero_EXTENDIDO() {
 /**
  * 7. REPORTE: Deuda Real (Incluye Saldos a favor cruzados)
  */
-function reporteDeudaRealCorregido() {
+ function reporteDeudaRealCorregido() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
-  const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
-  if (!cargosSheet || !saldosAFavorSheet) return;
+  const ui = SpreadsheetApp.getUi();
+  
+  // --- CONFIGURACIÓN ARCHIVO EXTERNO ---
+  const ID_ARCHIVO_EXTERNO = "1yKAExPx4FbqIEj10t-ZZZFgp_ZIsodt3a5xPxCzsx8Y"; 
+  // -------------------------------------
 
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !saldosAFavorSheet) {
+    ui.alert("Error", "Faltan hojas necesarias en el archivo origen.", ui.ButtonSet.OK);
+    return;
+  }
+
+  // 1. Cargar Saldos a Favor
   const anticipos = {};
-  saldosAFavorSheet.getDataRange().getValues().slice(1).forEach(row => {
-    if (Number(row[1]) > 0) anticipos[String(row[0])] = Number(row[1]);
+  const anticiposData = saldosAFavorSheet.getDataRange().getValues().slice(1);
+  
+  anticiposData.forEach(row => {
+    const id = String(row[0]); 
+    const monto = Number(row[1]) || 0; 
+    if (monto > 0) anticipos[id] = monto;
   });
 
+  // 2. Cargar Pagos realizados (Lectura original)
+  const pagosData = pagosSheet.getDataRange().getValues().slice(1);
+
+  // --- LÓGICA: FECHA ACTUAL ---
+  const hoy = new Date();
+  const mesActual = hoy.getMonth();
+  const anioActual = hoy.getFullYear();
+  // ----------------------------
+
+  // 3. Procesar Cargos (CON LOS ÍNDICES CORRECTOS)
+  const cargosData = cargosSheet.getDataRange().getValues().slice(1);
   const deudasPorUnidad = {};
-  cargosSheet.getDataRange().getValues().slice(1).forEach(row => {
-    if (String(row[5]) !== "Pagado") {
-      if (!deudasPorUnidad[row[1]]) deudasPorUnidad[row[1]] = [];
-      deudasPorUnidad[row[1]].push({concepto: String(row[2]), monto: Number(row[4]) || 0});
+
+  cargosData.forEach(row => {
+    const id = String(row[1]);         // Columna B: ID_UNIDAD
+    const concepto = String(row[2]);   // Columna C: CONCEPTO
+    const fechaCorte = new Date(row[3]); // Columna D: MES_CORTE
+    const monto = Number(row[4]) || 0; // Columna E: MONTO_BASE
+    const estado = String(row[5]);     // Columna F: ESTADO
+
+    let esMesActual = false;
+    
+    // Validamos que fechaCorte sea una fecha real antes de comprobar
+    if (!isNaN(fechaCorte.getTime())) {
+      esMesActual = (fechaCorte.getMonth() === mesActual && fechaCorte.getFullYear() === anioActual);
+    }
+
+    // Solo se suma si NO está pagado y NO corresponde al mes y año actual
+    if (estado !== "Pagado" && !esMesActual) {
+      if (!deudasPorUnidad[id]) deudasPorUnidad[id] = [];
+      deudasPorUnidad[id].push({concepto: concepto, monto: monto});
     }
   });
 
-  const filasReporte = []; const rankingReal = []; let granTotalCondominio = 0;
-  Object.keys(deudasPorUnidad).sort().forEach(id => {
+  // 4. Construir Reporte (Matriz de datos)
+  const filasReporte = [];
+  const rankingReal = [];
+  let granTotalCondominio = 0;
+  const unidades = Object.keys(deudasPorUnidad).sort();
+
+  unidades.forEach(id => {
     let sumaCargos = 0;
     filasReporte.push([`Departamento ${id}`, ""]);
-    deudasPorUnidad[id].forEach(item => { filasReporte.push([item.concepto, item.monto]); sumaCargos += item.monto; });
+    
+    deudasPorUnidad[id].forEach(item => {
+      filasReporte.push([item.concepto, item.monto]);
+      sumaCargos += item.monto;
+    });
 
     const saldoAFavor = anticipos[id] || 0;
     const totalReal = Math.max(0, sumaCargos - saldoAFavor);
@@ -498,25 +549,59 @@ function reporteDeudaRealCorregido() {
       filasReporte.push(["Subtotal Cargos Pendientes", sumaCargos]);
       filasReporte.push(["(-) SALDO A FAVOR DISPONIBLE", -saldoAFavor]);
     }
-    filasReporte.push([`TOTAL REAL A PAGAR ${id}`, totalReal]); filasReporte.push(["", ""]);
 
-    if (totalReal > 0) { granTotalCondominio += totalReal; rankingReal.push({id: id, total: totalReal}); }
+    filasReporte.push([`TOTAL REAL A PAGAR ${id}`, totalReal]);
+    filasReporte.push(["", ""]);
+
+    if (totalReal > 0) {
+      granTotalCondominio += totalReal;
+      rankingReal.push({id: id, total: totalReal});
+    }
   });
 
   filasReporte.push(["---------------------------------------", ""]);
   filasReporte.push(["GRAN TOTAL RECUPERABLE", granTotalCondominio]);
+  filasReporte.push(["---------------------------------------", ""]);
   filasReporte.push(["", ""]);
-  
+
   rankingReal.sort((a, b) => b.total - a.total);
   filasReporte.push(["RANKING DE DEUDORES (MAYOR A MENOR)", ""]);
-  rankingReal.forEach(item => filasReporte.push([`Depto ${item.id}`, item.total]));
+  rankingReal.forEach(item => {
+    filasReporte.push([`Depto ${item.id}`, item.total]);
+  });
 
-  let sheet = ss.getSheetByName("REPORTE_DEUDA_REAL") || ss.insertSheet("REPORTE_DEUDA_REAL");
-  sheet.clear();
-  sheet.getRange(1, 1, filasReporte.length, 2).setValues(filasReporte);
-  sheet.getRange(1, 2, filasReporte.length, 1).setNumberFormat("$#,##0.00");
-  sheet.activate();
+  // 5. FUNCIÓN INTERNA PARA ESCRIBIR Y DAR FORMATO (INTACTA)
+  const escribirEnHoja = (targetSS, nombre) => {
+    let sheet = targetSS.getSheetByName(nombre) || targetSS.insertSheet(nombre);
+    sheet.clear();
+    sheet.getRange(1, 1, filasReporte.length, 2).setValues(filasReporte);
+    sheet.setColumnWidth(1, 350);
+    sheet.getRange(1, 2, filasReporte.length, 1).setNumberFormat("$#,##0.00");
+    
+    for (let i = 0; i < filasReporte.length; i++) {
+      let t = String(filasReporte[i][0]);
+      if (t.startsWith("Departamento")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#D9EAD3");
+      if (t.startsWith("TOTAL REAL")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#FFF2CC");
+      if (t.includes("(-) SALDO")) sheet.getRange(i+1, 1, 1, 2).setFontColor("green").setFontStyle("italic");
+    }
+  };
+
+  // 6. Ejecutar escritura en ambos archivos
+  const nombreHojaReporte = "REPORTE_DEUDA_REAL";
+  
+  // Actualizar en este archivo
+  escribirEnHoja(ss, nombreHojaReporte);
+
+  // Actualizar en el archivo externo
+  try {
+    const ssExterno = SpreadsheetApp.openById(ID_ARCHIVO_EXTERNO);
+    escribirEnHoja(ssExterno, nombreHojaReporte);
+    ui.alert("Éxito", "Reporte actualizado en ambos archivos.", ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert("Error de acceso", "No se pudo actualizar el archivo externo. Revisa el ID y los permisos. " + e.message, ui.ButtonSet.OK);
+  }
 }
+
 
 /**
  * ==============================================================================

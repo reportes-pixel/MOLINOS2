@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        .card-btn { transition: all 0.2s; }
+        .card-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .disabled-btn { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border-t-4 border-teal-600 p-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fas fa-cogs mr-2 text-teal-600"></i>Gestor Maestro de Cargos</h2>
+        <p class="text-sm text-gray-500 mb-6">Selecciona el mes objetivo y ejecuta los procesos masivos.</p>
+
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r mb-8 shadow-sm">
+            <label class="block text-sm font-bold text-blue-900 mb-2">1. Selecciona el Mes y Año a procesar:</label>
+            <input type="month" id="mesMaestro" class="w-full md:w-1/2 p-2.5 border-2 border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-lg font-semibold">
+        </div>
+
+        <h3 class="text-md font-bold text-gray-700 mb-4">2. Ejecutar Acciones:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div class="border border-gray-200 rounded-lg p-4 card-btn bg-white relative">
+                <i class="fas fa-home text-3xl text-green-500 mb-3 block"></i>
+                <h4 class="font-bold text-gray-800">Generar Mensualidades</h4>
+                <p class="text-xs text-gray-500 mb-4 h-8">Evalúa deudas, aplica cuotas VIP/INSEN y genera el cargo base.</p>
+                <button id="btn1" onclick="ejecutarAccion('generarCargosMensuales_V2', 'btn1', 'res1')" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition">EJECUTAR</button>
+                <div id="res1" class="hidden mt-2 text-sm font-bold text-center"></div>
+            </div>
+
+            <div class="border border-gray-200 rounded-lg p-4 card-btn bg-white">
+                <i class="fas fa-edit text-3xl text-orange-500 mb-3 block"></i>
+                <h4 class="font-bold text-gray-800">Corregir Vencidos (PP a Normal)</h4>
+                <p class="text-xs text-gray-500 mb-4 h-8">Quita el beneficio de Pronto Pago a quienes no pagaron en el mes.</p>
+                <button id="btn2" onclick="ejecutarAccion('corregirMontoVencido_V2', 'btn2', 'res2')" class="w-full bg-orange-500 text-white font-bold py-2 rounded hover:bg-orange-600 transition">EJECUTAR</button>
+                <div id="res2" class="hidden mt-2 text-sm font-bold text-center"></div>
+            </div>
+
+            <div class="border border-gray-200 rounded-lg p-4 card-btn bg-white">
+                <i class="fas fa-clock text-3xl text-red-500 mb-3 block"></i>
+                <h4 class="font-bold text-gray-800">Aplicar Recargos por Mora</h4>
+                <p class="text-xs text-gray-500 mb-4 h-8">Genera el recargo de penalización al mes seleccionado.</p>
+                <button id="btn3" onclick="ejecutarAccion('generarRecargosPorMora_V2', 'btn3', 'res3')" class="w-full bg-red-600 text-white font-bold py-2 rounded hover:bg-red-700 transition">EJECUTAR</button>
+                <div id="res3" class="hidden mt-2 text-sm font-bold text-center"></div>
+            </div>
+
+            <div class="border border-gray-200 rounded-lg p-4 card-btn bg-white">
+                <i class="fas fa-bolt text-3xl text-purple-500 mb-3 block"></i>
+                <h4 class="font-bold text-gray-800">Generar Intereses (10%)</h4>
+                <p class="text-xs text-gray-500 mb-4 h-8">Aplica el interés a saldos viejos ANTERIORES al mes seleccionado.</p>
+                <button id="btn4" onclick="ejecutarAccion('generarInteresesMora_V2', 'btn4', 'res4')" class="w-full bg-purple-600 text-white font-bold py-2 rounded hover:bg-purple-700 transition">EJECUTAR</button>
+                <div id="res4" class="hidden mt-2 text-sm font-bold text-center"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function ejecutarAccion(funcionServidor, btnId, resId) {
+            const mesStr = document.getElementById('mesMaestro').value; // Formato: "YYYY-MM"
+            if (!mesStr) {
+                alert("Por favor, selecciona un Mes y Año en la parte superior antes de continuar.");
+                return;
+            }
+
+            if(!confirm(`¿Estás seguro de ejecutar este proceso para el mes de ${mesStr}?`)) return;
+
+            // Cambiar estado visual
+            const btn = document.getElementById(btnId);
+            const res = document.getElementById(resId);
+            const textoOriginal = btn.innerText;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+            btn.classList.add('disabled-btn');
+            res.classList.add('hidden');
+            res.className = "mt-2 text-sm font-bold text-center"; // reset classes
+
+            // Llamar a Google Apps Script
+            google.script.run
+                .withSuccessHandler((mensajeExito) => {
+                    btn.innerHTML = textoOriginal;
+                    btn.classList.remove('disabled-btn');
+                    res.innerText = "✅ " + mensajeExito;
+                    res.classList.add('text-green-600', 'block');
+                    res.classList.remove('hidden');
+                })
+                .withFailureHandler((err) => {
+                    btn.innerHTML = textoOriginal;
+                    btn.classList.remove('disabled-btn');
+                    res.innerText = "❌ Error: " + err.message;
+                    res.classList.add('text-red-600', 'block');
+                    res.classList.remove('hidden');
+                })
+                [funcionServidor](mesStr);
+        }
+    </script>
+</body>
+</html>

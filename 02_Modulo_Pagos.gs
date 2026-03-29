@@ -153,34 +153,6 @@ function getChargeConcept(chargeId) {
     return `ID no encontrado`;
 }
 
-function getUnitAnticipo(idUnidad) {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALDOS_A_FAVOR");
-    if (!sheet) return 0;
-    const data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(idUnidad)) {
-            return parseFloat(data[i][1]) || 0;
-        }
-    }
-    return 0;
-}
-
-function updateAnticipo(idUnidad, nuevoSaldo) {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALDOS_A_FAVOR");
-    if (!sheet) return;
-    const data = sheet.getDataRange().getValues();
-    let found = false;
-    for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(idUnidad)) {
-            sheet.getRange(i + 1, 2).setValue(nuevoSaldo);
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        sheet.appendRow([idUnidad, nuevoSaldo]);
-    }
-}
 
 // -----------------------------------------------------------------------------------
 // MÓDULO DE ANULACIÓN BLINDADO

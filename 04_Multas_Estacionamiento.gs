@@ -91,3 +91,31 @@ function generarCargosEstacionamiento(fechaCorte) {
         sheetCargos.getRange(sheetCargos.getLastRow() + 1, 1, nuevosCargos.length, 8).setValues(nuevosCargos);
     }
 }
+
+function guardarCargoExtraordinario(data) {
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+        
+        if (!cargosSheet) return { success: false, message: "No se encontró la hoja CARGOS_Y_DEUDAS." };
+        
+        const idCargo = 'CGO-EXT-' + Utilities.getUuid().substring(0, 6).toUpperCase();
+        const fechaHoy = new Date();
+        const montoNum = parseFloat(data.monto);
+        
+        cargosSheet.appendRow([
+            idCargo, 
+            data.idUnidad, 
+            data.concepto, 
+            fechaHoy, 
+            montoNum, 
+            "Pendiente", 
+            "", 
+            ""
+        ]);
+        
+        return { success: true, message: "Cargo extraordinario registrado exitosamente." };
+    } catch (e) {
+        return { success: false, message: "Error: " + e.message };
+    }
+}

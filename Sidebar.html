@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #f0f4f8; /* Fondo azul súper clarito */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        
+        /* Estilos de botones del menú */
+        .menu-btn { 
+            width: 100%; 
+            text-align: left; 
+            padding: 12px 16px; 
+            border-radius: 8px; 
+            margin-bottom: 6px; 
+            transition: all 0.3s ease; 
+            font-size: 14px; 
+            font-weight: 600; 
+            color: #1e3a8a; /* Texto azul muy oscuro */
+            background-color: transparent;
+            border: 1px solid transparent;
+        }
+        .menu-btn:hover { 
+            background-color: #dbeafe; /* Fondo azul claro al pasar el mouse */
+            border-color: #bfdbfe;
+            transform: translateX(4px); 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .menu-btn i { 
+            width: 28px; 
+            text-align: center; 
+            color: #2563eb; /* Iconos en azul brillante */
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        /* Estilos del Acordeón (Categorías) */
+        .accordion-header { 
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); /* Degradado azul oscuro elegante */
+            color: white; 
+            padding: 14px 16px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            margin-top: 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .accordion-header:hover { 
+            background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%); 
+            transform: translateY(-1px);
+        }
+        .accordion-content { 
+            display: none; 
+            padding: 12px 8px 4px 8px; 
+            background-color: white;
+            border-radius: 0 0 10px 10px;
+            margin-top: -6px; /* Para que se fusione con el header */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            border-top: none;
+        }
+
+        /* Cargador */
+        .loader { 
+            border: 4px solid #e0f2fe; 
+            border-top: 4px solid #2563eb; 
+            border-radius: 50%; 
+            width: 28px; 
+            height: 28px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto; 
+            display: none; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="p-4">
+
+    <div id="loginView" class="max-w-sm mx-auto mt-8">
+        <div class="text-center mb-8">
+            <div class="bg-blue-600 text-white rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-4 shadow-xl border-4 border-blue-100">
+                <i class="fas fa-building fa-4x"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-blue-900 tracking-tight">Molinos Real II</h2>
+            <p class="text-sm text-blue-600 font-semibold mt-1 uppercase tracking-widest">Panel de Control</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-blue-600">
+            <label class="block text-sm font-bold text-blue-900 mb-2">Usuario Asignado</label>
+            <select id="loginUser" class="w-full p-3 border-2 border-gray-200 rounded-xl mb-5 outline-none focus:border-blue-500 bg-gray-50 transition text-gray-700 font-medium">
+                <option value="">Cargando usuarios...</option>
+            </select>
+
+            <label class="block text-sm font-bold text-blue-900 mb-2">Contraseña / PIN</label>
+            <input type="password" id="loginPass" placeholder="••••••••" class="w-full p-3 border-2 border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 bg-gray-50 text-center tracking-widest text-lg font-bold transition">
+
+            <button onclick="intentarLogin()" id="btnLogin" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                INICIAR SESIÓN
+            </button>
+            <div id="loginLoader" class="loader mt-4"></div>
+            <div id="loginError" class="text-red-500 text-center text-sm font-bold mt-4 hidden bg-red-50 p-2 rounded-lg border border-red-200"></div>
+        </div>
+    </div>
+
+    <div id="menuView" class="hidden">
+        
+        <div class="bg-gradient-to-r from-blue-50 to-white p-4 rounded-xl shadow-sm mb-5 border border-blue-100 flex items-center justify-between">
+            <div>
+                <p class="text-[10px] text-blue-500 uppercase font-extrabold tracking-wider">Sesión Activa</p>
+                <p id="userNameDisplay" class="font-bold text-blue-900 text-lg leading-tight">Usuario</p>
+                <span id="userRoleDisplay" class="bg-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-bold inline-block mt-1">ROL</span>
+            </div>
+            <button onclick="cerrarSesion()" class="text-red-400 hover:text-red-600 hover:bg-red-50 p-2.5 rounded-xl transition" title="Cerrar Sesión">
+                <i class="fas fa-power-off fa-lg"></i>
+            </button>
+        </div>
+
+        <div id="modulosContainer">
+            
+            <div class="accordion-header" onclick="toggleAcc('accCobranza')">
+                <span><i class="fas fa-wallet mr-2 text-blue-200"></i> Cobranza Diaria</span>
+                <i class="fas fa-chevron-down text-sm text-blue-200"></i>
+            </div>
+            <div id="accCobranza" class="accordion-content">
+                <button class="menu-btn" onclick="ejecutar('showPaymentForm')"><i class="fas fa-hand-holding-usd text-emerald-500"></i> Registrar Pago</button>
+                <button class="menu-btn" onclick="ejecutar('showAdelantoForm')"><i class="fas fa-fast-forward text-blue-500"></i> Adelantar Mensualidades</button>
+                <button class="menu-btn" onclick="ejecutar('generarCortePagos')"><i class="fas fa-calendar-day text-purple-500"></i> Corte Diario</button>
+                <button class="menu-btn" onclick="ejecutar('lanzarBuscadorTicket')"><i class="fas fa-receipt text-amber-500"></i> Reimprimir Ticket</button>
+                <button class="menu-btn" onclick="ejecutar('reporteEstadoDeCuenta_SEPARADO')"><i class="fas fa-user-clock text-indigo-500"></i> Estado de Cuenta</button>
+            </div>
+
+            <div class="accordion-header" onclick="toggleAcc('accReportes')" data-roles="ADMIN,PRESIDENTE,CONTADOR">
+                <span><i class="fas fa-chart-pie mr-2 text-blue-200"></i> Reportes y Cortes</span>
+                <i class="fas fa-chevron-down text-sm text-blue-200"></i>
+            </div>
+            <div id="accReportes" class="accordion-content">
+                <button class="menu-btn border-b border-gray-100 rounded-none mb-2" onclick="ejecutar('generarCorteVariosDias')"><i class="fas fa-calendar-alt text-purple-600"></i> Corte por Periodo</button>
+                
+                <button class="menu-btn" onclick="ejecutar('accesoGeneradorFinancieroMaster')"><i class="fas fa-chart-line text-teal-600"></i> Reporte Financiero (Master)</button>
+
+                <button class="menu-btn" onclick="ejecutar('reporteSaldoDetalladoPorConcepto_Fechas')"><i class="fas fa-list-ul text-sky-500"></i> Saldo por Concepto</button>
+                
+                <button class="menu-btn" onclick="ejecutar('reporteTotalDeudores')"><i class="fas fa-sort-amount-down text-rose-500"></i> Ranking Deudores</button>
+                <button class="menu-btn" onclick="ejecutar('reporteMensualidadesVencidas_CORREGIDO')"><i class="fas fa-exclamation-circle text-orange-500"></i> Mensualidades Vencidas</button>
+                <button class="menu-btn" onclick="ejecutar('reporteDeudaRealCorregido')"><i class="fas fa-balance-scale-right text-red-600"></i> Reporte Deuda Real</button>
+            </div>
+
+            <div class="accordion-header" onclick="toggleAcc('accCargos')" data-roles="ADMIN,CONTADOR">
+                <span><i class="fas fa-file-invoice-dollar mr-2 text-blue-200"></i> Generación Cargos</span>
+                <i class="fas fa-chevron-down text-sm text-blue-200"></i>
+            </div>
+            <div id="accCargos" class="accordion-content">
+                <button class="menu-btn bg-teal-50 border border-teal-100" onclick="ejecutar('accesoGestorCargosMaestro')"><i class="fas fa-cogs text-teal-600"></i> Gestor Maestro de Cargos</button>
+                
+                <hr class="my-2 border-gray-100">
+
+                <button class="menu-btn" onclick="ejecutar('showFineForm')"><i class="fas fa-gavel text-orange-500"></i> Registrar Multa</button>
+                <button class="menu-btn" onclick="ejecutar('mostrarFormularioCargoExtra')"><i class="fas fa-plus-square text-gray-500"></i> Cargo Extraordinario</button>
+                <button class="menu-btn" onclick="ejecutar('mostrarFormularioEstacionamiento')"><i class="fas fa-car-side text-slate-700"></i> Renta Estacionamiento</button>
+            </div>
+
+            <div class="accordion-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);" onclick="toggleAcc('accAdmin')" data-roles="ADMIN,CONTADOR">
+                <span><i class="fas fa-user-shield mr-2 text-gray-300"></i> Administración</span>
+                <i class="fas fa-chevron-down text-sm text-gray-300"></i>
+            </div>
+            <div id="accAdmin" class="accordion-content">
+                <button class="menu-btn" onclick="ejecutar('abrirCanceladorAdmin')"><i class="fas fa-ban text-red-500"></i> Cancelar Pago</button>
+                <button class="menu-btn" onclick="ejecutar('showExternalDebtForm')"><i class="fas fa-money-check-alt text-red-400"></i> Registrar Egresos</button>
+                <button class="menu-btn" onclick="ejecutar('toggleSheets')" data-roles="ADMIN"><i class="fas fa-eye text-slate-500"></i> Ocultar/Mostrar BD</button>
+                <button class="menu-btn" onclick="ejecutar('mostrarGestorUsuarios')" data-roles="ADMIN"><i class="fas fa-users-cog text-blue-600"></i> Gestión de Usuarios</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let usuarioActual = null;
+
+        window.onload = () => {
+            google.script.run.withSuccessHandler(llenarSelectUsuarios).obtenerNombresUsuariosActivos();
+        };
+
+        function llenarSelectUsuarios(nombres) {
+            const select = document.getElementById('loginUser');
+            select.innerHTML = '<option value="">-- Selecciona tu usuario --</option>';
+            nombres.forEach(nombre => {
+                select.innerHTML += `<option value="${nombre}">${nombre}</option>`;
+            });
+        }
+
+        function intentarLogin() {
+            const user = document.getElementById('loginUser').value;
+            const pass = document.getElementById('loginPass').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            if(!user || !pass) {
+                errorDiv.innerText = "Selecciona tu usuario y escribe tu PIN.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('btnLogin').style.display = 'none';
+            document.getElementById('loginLoader').style.display = 'block';
+            errorDiv.classList.add('hidden');
+
+            google.script.run.withSuccessHandler(procesarRespuestaLogin).validarLoginLogin(user, pass);
+        }
+
+        function procesarRespuestaLogin(res) {
+            document.getElementById('loginLoader').style.display = 'none';
+            document.getElementById('btnLogin').style.display = 'block';
+
+            if(res.success) {
+                usuarioActual = res;
+                document.getElementById('userNameDisplay').innerText = res.nombre;
+                document.getElementById('userRoleDisplay').innerText = res.rol;
+                
+                aplicarPermisos(res.rol);
+
+                document.getElementById('loginView').style.display = 'none';
+                document.getElementById('menuView').style.display = 'block';
+            } else {
+                const errorDiv = document.getElementById('loginError');
+                errorDiv.innerText = res.message;
+                errorDiv.classList.remove('hidden');
+                document.getElementById('loginPass').value = ''; 
+            }
+        }
+
+        function aplicarPermisos(rolUsuario) {
+            // 1. Ocultar acordeones enteros según el rol
+            const headers = document.querySelectorAll('.accordion-header[data-roles]');
+            headers.forEach(header => {
+                const rolesPermitidos = header.getAttribute('data-roles').split(',');
+                if(!rolesPermitidos.includes(rolUsuario)) {
+                    header.style.display = 'none';
+                    const contentId = header.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    document.getElementById(contentId).style.display = 'none';
+                }
+            });
+
+            // 2. Ocultar botones individuales dentro de acordeones compartidos
+            const botonesProtegidos = document.querySelectorAll('.menu-btn[data-roles]');
+            botonesProtegidos.forEach(btn => {
+                const rolesPermitidosBtn = btn.getAttribute('data-roles').split(',');
+                if(!rolesPermitidosBtn.includes(rolUsuario)) {
+                    btn.style.display = 'none';
+                }
+            });
+        }
+
+        function cerrarSesion() {
+            usuarioActual = null;
+            document.getElementById('loginPass').value = '';
+            document.getElementById('menuView').style.display = 'none';
+            document.getElementById('loginView').style.display = 'block';
+            
+            document.querySelectorAll('.accordion-header').forEach(h => h.style.display = 'flex');
+            document.querySelectorAll('.accordion-content').forEach(c => c.style.display = 'none');
+            
+            // Volver a mostrar botones por si entra otro usuario
+            document.querySelectorAll('.menu-btn[data-roles]').forEach(b => b.style.display = 'block');
+        }
+
+        function toggleAcc(id) {
+            const content = document.getElementById(id);
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                document.querySelectorAll('.accordion-content').forEach(c => c.style.display = 'none');
+                content.style.display = "block";
+            }
+        }
+
+        function ejecutar(nombreFuncionGS) {
+            google.script.run[nombreFuncionGS]();
+        }
+    </script>
+</body>
+</html>

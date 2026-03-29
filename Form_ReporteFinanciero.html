@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        .radio-card:checked + div { border-color: #2563eb; background-color: #eff6ff; }
+        .radio-card:checked + div i { color: #2563eb; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md border-t-4 border-blue-600 p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-1"><i class="fas fa-chart-line mr-2 text-blue-500"></i>Reporte Financiero</h2>
+        <p class="text-sm text-gray-500 mb-5">Selecciona el tipo de reporte que deseas generar.</p>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <label class="cursor-pointer">
+                <input type="radio" name="tipoReporte" value="mes" class="radio-card hidden" checked onchange="toggleVista()">
+                <div class="border-2 border-gray-200 rounded-lg p-3 text-center transition hover:bg-gray-50">
+                    <i class="fas fa-calendar-day text-gray-400 text-xl mb-1 block transition"></i>
+                    <span class="text-sm font-bold text-gray-700">Un Solo Mes</span>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="tipoReporte" value="rango" class="radio-card hidden" onchange="toggleVista()">
+                <div class="border-2 border-gray-200 rounded-lg p-3 text-center transition hover:bg-gray-50">
+                    <i class="fas fa-calendar-alt text-gray-400 text-xl mb-1 block transition"></i>
+                    <span class="text-sm font-bold text-gray-700">Por Periodo</span>
+                </div>
+            </label>
+        </div>
+
+        <div class="space-y-4 mb-6">
+            <div id="cajaInicio">
+                <label id="lblInicio" class="block text-sm font-bold text-blue-900 mb-1">Mes a consultar</label>
+                <input type="month" id="mesInicio" class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50 transition">
+            </div>
+
+            <div id="cajaFin" class="hidden">
+                <label class="block text-sm font-bold text-blue-900 mb-1">Mes de término (Fin)</label>
+                <input type="month" id="mesFin" class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50 transition">
+            </div>
+        </div>
+
+        <div id="msjError" class="hidden text-red-500 text-sm font-bold text-center mb-4 bg-red-50 p-2 rounded"></div>
+
+        <button id="btnGenerar" onclick="enviarDatos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition shadow-md">
+            <i class="fas fa-cog mr-2"></i> GENERAR REPORTE
+        </button>
+        
+        <div id="loader" class="hidden text-center mt-3">
+            <i class="fas fa-spinner fa-spin text-blue-600 fa-2x"></i>
+            <p class="text-sm text-blue-800 font-bold mt-2">Construyendo reporte...</p>
+        </div>
+    </div>
+
+    <script>
+        function toggleVista() {
+            const esRango = document.querySelector('input[name="tipoReporte"]:checked').value === 'rango';
+            document.getElementById('cajaFin').style.display = esRango ? 'block' : 'none';
+            document.getElementById('lblInicio').innerText = esRango ? 'Mes de inicio' : 'Mes a consultar';
+        }
+
+        function enviarDatos() {
+            const tipo = document.querySelector('input[name="tipoReporte"]:checked').value;
+            const mesInicio = document.getElementById('mesInicio').value;
+            const mesFin = document.getElementById('mesFin').value;
+            const msjError = document.getElementById('msjError');
+
+            if (!mesInicio) return mostrarError("Debes seleccionar al menos el mes de inicio.");
+            if (tipo === 'rango' && !mesFin) return mostrarError("Debes seleccionar el mes de término.");
+            if (tipo === 'rango' && mesInicio > mesFin) return mostrarError("El mes de inicio no puede ser mayor al de término.");
+
+            msjError.classList.add('hidden');
+            document.getElementById('btnGenerar').classList.add('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+
+            const mFinFinal = (tipo === 'mes') ? mesInicio : mesFin;
+
+            // Enviar a Google Apps Script
+            google.script.run
+                .withSuccessHandler(() => google.script.host.close())
+                .withFailureHandler((err) => {
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('btnGenerar').classList.remove('hidden');
+                    mostrarError("Error: " + err.message);
+                })
+                .procesarPeticionFinancieroMaster(mesInicio, mFinFinal);
+        }
+
+        function mostrarError(texto) {
+            const msjError = document.getElementById('msjError');
+            msjError.innerText = texto;
+            msjError.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

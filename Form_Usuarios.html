@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
+        .user-item { cursor: pointer; transition: all 0.2s; }
+        .user-item:hover { background-color: #e2e8f0; }
+        .user-selected { background-color: #bfdbfe !important; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="p-4 flex gap-4 h-screen box-border">
+
+    <div class="w-1/3 bg-white rounded-xl shadow p-4 flex flex-col h-full">
+        <button onclick="prepararNuevo()" class="w-full bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 transition mb-4 shadow-sm">
+            <i class="fas fa-user-plus mr-1"></i> Nuevo
+        </button>
+        <div class="text-xs font-bold text-gray-500 uppercase mb-2">Usuarios Registrados</div>
+        <div id="listaUsuarios" class="overflow-y-auto flex-1 border border-gray-200 rounded-lg p-1 space-y-1">
+            <div class="text-center text-gray-400 mt-4 text-sm"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>
+        </div>
+    </div>
+
+    <div class="w-2/3 bg-white rounded-xl shadow p-5 h-full relative">
+        <h2 id="tituloForm" class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">Crear Usuario</h2>
+        
+        <form id="userForm" onsubmit="guardarDatos(event)" class="space-y-4">
+            <input type="hidden" id="userId" value="">
+            
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Nombre (Alias)</label>
+                <input type="text" id="userNombre" required placeholder="Ej: Juan Perez" class="w-full p-2 border border-gray-300 rounded focus:border-blue-500 outline-none bg-gray-50">
+            </div>
+
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Contraseña / PIN</label>
+                    <input type="text" id="userPass" required placeholder="Ej: 1234" class="w-full p-2 border border-gray-300 rounded focus:border-blue-500 outline-none bg-gray-50 tracking-wide">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Estado</label>
+                    <select id="userEstado" required class="w-full p-2 border border-gray-300 rounded focus:border-blue-500 outline-none bg-gray-50">
+                        <option value="ACTIVO">Activo</option>
+                        <option value="INACTIVO">Inactivo (Suspendido)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Nivel de Acceso (Rol)</label>
+                <select id="userRol" required class="w-full p-2 border border-gray-300 rounded focus:border-blue-500 outline-none bg-gray-50">
+                    <option value="ADMIN">Administrador (Acceso Total)</option>
+                    <option value="PRESIDENTE">Presidente (Reportes y Cobranza)</option>
+                    <option value="CONTADOR">Contador (Reportes y Egresos)</option>
+                    <option value="CAPTURISTA">Capturista (Solo Cobranza Diaria)</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">El rol define qué botones verá en el menú lateral.</p>
+            </div>
+
+            <div class="absolute bottom-5 left-5 right-5">
+                <div id="statusMsg" class="text-center text-sm font-bold mb-2 hidden"></div>
+                <button type="submit" id="btnGuardar" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition shadow-md">
+                    <i class="fas fa-save mr-2"></i> GUARDAR USUARIO
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let dbUsers = [];
+
+        window.onload = cargarUsuarios;
+
+        function cargarUsuarios() {
+            google.script.run.withSuccessHandler(renderLista).getUsuariosData();
+        }
+
+        function renderLista(res) {
+            const container = document.getElementById('listaUsuarios');
+            container.innerHTML = '';
+            
+            if(!res.success) {
+                container.innerHTML = `<div class="p-2 text-red-500 text-xs">${res.message}</div>`;
+                return;
+            }
+
+            dbUsers = res.users;
+            
+            dbUsers.forEach(u => {
+                const colorEstado = u.estado === 'ACTIVO' ? 'text-green-500' : 'text-red-500';
+                const div = document.createElement('div');
+                div.className = "user-item p-2 rounded border-b border-gray-100 flex justify-between items-center";
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-sm text-gray-800">${u.nombre}</div>
+                        <div class="text-[10px] text-gray-500 font-mono">${u.rol}</div>
+                    </div>
+                    <i class="fas fa-circle text-[8px] ${colorEstado}"></i>
+                `;
+                div.onclick = () => cargarDatosEnForm(u, div);
+                container.appendChild(div);
+            });
+            
+            prepararNuevo(); // Por defecto, preparar para nuevo
+        }
+
+        function cargarDatosEnForm(user, divElement) {
+            // Estilos de selección
+            document.querySelectorAll('.user-item').forEach(el => el.classList.remove('user-selected'));
+            if(divElement) divElement.classList.add('user-selected');
+
+            document.getElementById('tituloForm').innerText = "Editar Usuario";
+            document.getElementById('userId').value = user.id;
+            document.getElementById('userNombre').value = user.nombre;
+            document.getElementById('userPass').value = user.password;
+            document.getElementById('userRol').value = user.rol;
+            document.getElementById('userEstado').value = user.estado;
+            
+            ocultarMensaje();
+        }
+
+        function prepararNuevo() {
+            document.querySelectorAll('.user-item').forEach(el => el.classList.remove('user-selected'));
+            document.getElementById('tituloForm').innerText = "Crear Nuevo Usuario";
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('userEstado').value = 'ACTIVO';
+            document.getElementById('userRol').value = 'CAPTURISTA';
+            ocultarMensaje();
+        }
+
+        function guardarDatos(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnGuardar');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            ocultarMensaje();
+
+            const data = {
+                id: document.getElementById('userId').value,
+                nombre: document.getElementById('userNombre').value.trim(),
+                password: document.getElementById('userPass').value.trim(),
+                rol: document.getElementById('userRol').value,
+                estado: document.getElementById('userEstado').value
+            };
+
+            google.script.run.withSuccessHandler(res => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save mr-2"></i> GUARDAR USUARIO';
+                mostrarMensaje(res.message, res.success);
+                if(res.success) cargarUsuarios(); // Recargar lista
+            }).guardarUsuario(data);
+        }
+
+        function mostrarMensaje(texto, esExito) {
+            const msg = document.getElementById('statusMsg');
+            msg.innerText = texto;
+            msg.className = `text-center text-sm font-bold mb-2 ${esExito ? 'text-green-600' : 'text-red-600'}`;
+            msg.classList.remove('hidden');
+            setTimeout(ocultarMensaje, 4000);
+        }
+
+        function ocultarMensaje() {
+            document.getElementById('statusMsg').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

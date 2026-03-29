@@ -1,70 +1,52 @@
 /**
- * Oculta o muestra las hojas de configuración y datos maestros.
- * Requiere una contraseña para su ejecución.
+ * Oculta o Muestra las hojas sensibles del sistema.
+ * Solo accesible para el rol ADMIN.
  */
 function toggleSheets() {
-    const PASSWORD_REQUERIDA = "Super25";
-    
-    // Lista de las hojas sensibles que queremos proteger
-    const NOMBRES_HOJAS_SENSIBLES = [
-        "CONFIG_MULTAS",
-        "UNIDADES",
-        "CONFIGURACION",
-        "USUARIOS",
-        "SALDOS_A_FAVOR",
-        "CARGOS_Y_DEUDAS",
-        "REGISTRO_PAGOS",
-        "EGRESOS"
-    ];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  
+  // Lista exacta de tus hojas sensibles
+  const hojasSensibles = [
+    "CONFIGURACION", 
+    "REGISTRO_PAGOS", 
+    "CARGOS_Y_DEUDAS", 
+    "EGRESOS", 
+    "SALDOS_A_FAVOR", 
+    "RENTAS_ESTACIONAMIENTO",
+    "DEUDAS VIEJAS",
+    "USER" 
+  ];
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const ui = SpreadsheetApp.getUi();
+  // Revisamos el estado de la primera hoja de la lista para decidir qué hacer
+  const primeraHoja = ss.getSheetByName(hojasSensibles[0]);
+  if (!primeraHoja) {
+    ui.alert("Error", "No se encontró la hoja de CONFIGURACION para validar el estado.", ui.ButtonSet.OK);
+    return;
+  }
 
-    // 1. Pedir Contraseña
-    const prompt = ui.prompt(
-        "Acceso Restringido",
-        "Por favor, introduce la contraseña para ocultar/mostrar las hojas sensibles.",
-        ui.ButtonSet.OK_CANCEL
-    );
+  const estanOcultas = primeraHoja.isSheetHidden();
 
-    if (prompt.getSelectedButton() !== ui.Button.OK) {
-        // El usuario canceló
-        return;
-    }
-
-    const passwordIngresada = prompt.getResponseText();
-
-    // 2. Verificar Contraseña
-    if (passwordIngresada !== PASSWORD_REQUERIDA) {
-        ui.alert("Acceso Denegado", "Contraseña incorrecta. No se realizaron cambios.", ui.ButtonSet.OK);
-        return;
-    }
-
-    // 3. Determinar la acción (Mostrar u Ocultar)
-    // Buscamos la primera hoja sensible. Si está oculta, el objetivo será MOSTRAR.
-    let targetSheet = ss.getSheetByName(NOMBRES_HOJAS_SENSIBLES[0]);
-    
-    // Si la hoja no existe o está oculta, el objetivo es MOSTRAR
-    const isHidden = targetSheet && targetSheet.isSheetHidden(); 
-    const accion = isHidden ? "mostrando" : "ocultando";
-
-    let contador = 0;
-
-    // 4. Iterar y aplicar la acción
-    NOMBRES_HOJAS_SENSIBLES.forEach(sheetName => {
-        let sheet = ss.getSheetByName(sheetName);
-        if (sheet) {
-            if (isHidden) {
-                // Si estaban ocultas, las mostramos
-                sheet.showSheet();
-            } else {
-                // Si estaban visibles, las ocultamos
-                sheet.hideSheet();
-            }
-            contador++;
-        }
+  if (estanOcultas) {
+    // VAMOS A MOSTRARLAS
+    hojasSensibles.forEach(nombre => {
+      const hoja = ss.getSheetByName(nombre);
+      if (hoja) {
+        hoja.showSheet();
+      }
     });
-
-    // 5. Mostrar Resultado
-    ui.alert("Éxito", `Se han terminado de ${accion} ${contador} hojas.`, ui.ButtonSet.OK);
+    // CORRECCIÓN: toast pertenece a la Hoja de Cálculo, no a la UI
+    ss.toast("Bases de datos visibles para edición.", "🔒 MODO ADMIN", 3);
+  } else {
+    // VAMOS A OCULTARLAS
+    hojasSensibles.forEach(nombre => {
+      const hoja = ss.getSheetByName(nombre);
+      // Nunca ocultamos todas, siempre debe quedar una visible (ej. UNIDADES)
+      if (hoja && ss.getSheets().filter(s => !s.isSheetHidden()).length > 1) {
+        hoja.hideSheet();
+      }
+    });
+    // CORRECCIÓN: toast pertenece a la Hoja de Cálculo, no a la UI
+    ss.toast("Bases de datos protegidas y ocultas.", "🔒 SISTEMA BLINDADO", 3);
+  }
 }
