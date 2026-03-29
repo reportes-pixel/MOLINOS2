@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; color: #333; }
+        .container { background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        h2 { color: #1a73e8; margin-top: 0; font-weight: 700; border-bottom: 2px solid #e8e8e8; padding-bottom: 10px; margin-bottom: 15px; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px; text-align: center; background: #e8eaed; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s; border: none; }
+        .tab-btn.active { background: #1a73e8; color: white; }
+        
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; padding: 15px; background: #f1f3f4; border-radius: 8px; }
+        .search-box input { margin-bottom: 0 !important; flex: 1; }
+        .search-box button { width: auto; padding: 10px 15px; background: #34a853; }
+
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 0.95rem; }
+        input[type="text"], input[type="number"], input[type="date"], input[type="month"], input[type="password"], select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: border-color 0.3s, box-shadow 0.3s; }
+        input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2); outline: none; }
+        
+        button { background-color: #1a73e8; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem; font-weight: 600; transition: background-color 0.3s, transform 0.1s; }
+        button:hover { background-color: #1565c0; }
+        button:active { transform: scale(0.99); }
+        button:disabled { background-color: #9aa0a6; cursor: not-allowed; }
+
+        .message { padding: 15px; margin-top: 20px; border-radius: 8px; font-weight: 600; text-align: center; }
+        .success { background-color: #e6ffed; color: #1a8837; border: 1px solid #a6e3b7; }
+        .error { background-color: #ffe6e6; color: #d93025; border: 1px solid #e8a6a6; }
+        .loading { text-align: center; color: #1a73e8; font-weight: 600; margin-top: 15px; }
+        
+        .clave-box { border-left: 4px solid #fbbc04; padding-left: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Gestión de Egresos</h2>
+    
+    <div class="tabs">
+        <button type="button" class="tab-btn active" onclick="setMode('nuevo')">Registrar Nuevo</button>
+        <button type="button" class="tab-btn" onclick="setMode('editar')">Editar Existente</button>
+    </div>
+
+    <div id="searchSection" class="search-box" style="display: none;">
+        <input type="text" id="buscarId" placeholder="Folio del Egreso (Ej: EGR-A1B2)">
+        <button type="button" onclick="buscarEgreso()">Buscar</button>
+    </div>
+
+    <form id="debtForm">
+        <input type="hidden" id="modoForm" value="nuevo">
+        <input type="hidden" id="idEgreso" value="">
+
+        <label for="mesEgreso">Mes al que corresponde el gasto</label>
+        <input type="month" id="mesEgreso" required>
+
+        <label for="concepto">Concepto / Descripción</label>
+        <input type="text" id="concepto" required placeholder="Ej: Pago a contratista por reparación de bomba">
+
+        <label for="proveedor">Proveedor / Acreedor</label>
+        <input type="text" id="proveedor" required placeholder="Ej: Servicios Eléctricos S.A.">
+
+        <label for="monto">Monto Total ($)</label>
+        <input type="number" id="monto" required min="0.01" step="0.01" placeholder="Ej: 1500.00">
+
+        <label for="fechaEmision">Fecha de Emisión del Comprobante</label>
+        <input type="date" id="fechaEmision" required>
+
+        <label for="capturista">Registrado / Editado Por</label>
+        <select id="capturista" required>
+            <option value="" disabled selected>Cargando usuarios...</option>
+        </select>
+        
+        <div class="clave-box" id="claveBox" style="display:none;">
+            <label for="claveControl">Clave de Autorización (Obligatorio para editar)</label>
+            <input type="password" id="claveControl" placeholder="Introduce tu clave/PIN">
+        </div>
+        
+        <button type="submit" id="submitBtn">Guardar Registro</button>
+    </form>
+    
+    <div id="loading" class="loading" style="display: none;">Procesando...</div>
+    <div id="message" class="message" style="display: none;"></div>
+</div>
+
+<script>
+    const form = document.getElementById('debtForm');
+    const capturistaSelect = document.getElementById('capturista');
+    const messageDiv = document.getElementById('message');
+    const loadingDiv = document.getElementById('loading');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    const today = new Date();
+    const currentMonth = today.toISOString().substring(0, 7); 
+    const currentDate = today.toISOString().substring(0, 10); 
+
+    document.addEventListener('DOMContentLoaded', function() {
+        resetCampos();
+        cargarCapturistas();
+    });
+
+    function showMessage(msg, isSuccess) {
+        messageDiv.textContent = msg;
+        messageDiv.className = isSuccess ? 'message success' : 'message error';
+        messageDiv.style.display = 'block';
+        submitBtn.disabled = false;
+    }
+
+    function resetCampos() {
+        document.getElementById('concepto').value = '';
+        document.getElementById('proveedor').value = '';
+        document.getElementById('monto').value = '';
+        document.getElementById('mesEgreso').value = currentMonth;
+        document.getElementById('fechaEmision').value = currentDate;
+        document.getElementById('idEgreso').value = '';
+        document.getElementById('claveControl').value = '';
+    }
+
+    function setMode(modo) {
+        messageDiv.style.display = 'none';
+        const btns = document.querySelectorAll('.tab-btn');
+        btns[0].classList.toggle('active', modo === 'nuevo');
+        btns[1].classList.toggle('active', modo === 'editar');
+        
+        document.getElementById('modoForm').value = modo;
+        document.getElementById('searchSection').style.display = modo === 'editar' ? 'flex' : 'none';
+        document.getElementById('claveBox').style.display = modo === 'editar' ? 'block' : 'none';
+        document.getElementById('submitBtn').textContent = modo === 'editar' ? 'Actualizar Egreso' : 'Registrar Egreso';
+        
+        // Hacer la clave obligatoria solo en modo edición
+        document.getElementById('claveControl').required = modo === 'editar';
+        
+        if(modo === 'nuevo') resetCampos();
+    }
+
+    function cargarCapturistas() {
+        google.script.run.withSuccessHandler(function(result) {
+            if (result.capturistas) {
+                result.capturistas.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    capturistaSelect.appendChild(option);
+                });
+                capturistaSelect.selectedIndex = 0; 
+            }
+        }).getCapturistaList();
+    }
+
+    function buscarEgreso() {
+        const idBusqueda = document.getElementById('buscarId').value.trim();
+        if(!idBusqueda) return alert("Ingresa un folio válido.");
+        
+        loadingDiv.style.display = 'block';
+        messageDiv.style.display = 'none';
+        submitBtn.disabled = true;
+
+        google.script.run
+            .withSuccessHandler(function(res) {
+                loadingDiv.style.display = 'none';
+                if(res.success) {
+                    document.getElementById('idEgreso').value = idBusqueda;
+                    document.getElementById('mesEgreso').value = res.mesEgresoStr;
+                    document.getElementById('concepto').value = res.concepto;
+                    document.getElementById('proveedor').value = res.proveedor;
+                    document.getElementById('monto').value = res.monto;
+                    document.getElementById('fechaEmision').value = res.fechaEmisionStr;
+                    document.getElementById('capturista').value = res.capturista;
+                    showMessage("✅ Datos cargados. Puedes modificarlos.", true);
+                } else {
+                    showMessage("❌ " + res.message, false);
+                }
+            })
+            .buscarEgresoPorId(idBusqueda);
+    }
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        messageDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+        submitBtn.disabled = true;
+
+        const debtData = {
+            modo: document.getElementById('modoForm').value,
+            idEgreso: document.getElementById('idEgreso').value,
+            mesEgresoStr: document.getElementById('mesEgreso').value,
+            concepto: document.getElementById('concepto').value.trim(),
+            proveedor: document.getElementById('proveedor').value.trim(),
+            monto: document.getElementById('monto').value,
+            fechaEmisionStr: document.getElementById('fechaEmision').value,
+            capturista: document.getElementById('capturista').value,
+            claveControl: document.getElementById('claveControl').value.trim()
+        };
+        
+        google.script.run
+            .withSuccessHandler(function(result) {
+                loadingDiv.style.display = 'none';
+                if (result.success) {
+                    showMessage(result.message, true);
+                    if(debtData.modo === 'nuevo') resetCampos();
+                } else {
+                    showMessage(result.message, false);
+                }
+            })
+            .processExternalDebtRegistration(debtData); 
+    });
+</script>
+
+</body>
+</html>

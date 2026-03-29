@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        .debt-list { max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 0.375rem; }
+        .debt-item { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background-color 0.2s; }
+        .debt-item:last-child { border-bottom: none; }
+        .debt-item.selected { background-color: #dbeafe; }
+        .debt-item:hover:not(.selected) { background-color: #f0f4f8; }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .select2-container .select2-selection--single {
+            height: 38px !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.375rem !important;
+            display: flex;
+            align-items: center;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container p-4 bg-white shadow-xl rounded-lg">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">Registro de Pagos de Unidad</h1>
+    
+    <div id="messages" class="mb-4"></div>
+
+    <form id="paymentForm" onsubmit="submitPayment(event)" class="space-y-4">
+        
+        <div>
+            <label for="idUnidad" class="block text-sm font-medium text-gray-700">Unidad/Departamento</label>
+            <select id="idUnidad" name="idUnidad" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                <option value="">Cargando unidades...</option>
+            </select>
+            <p id="unitInfo" class="mt-1 text-xs text-gray-500"></p>
+        </div>
+
+        <div>
+            <label for="capturista" class="block text-sm font-medium text-gray-700">Registrado Por</label>
+            <select id="capturista" name="capturista" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                <option value="">Cargando capturistas...</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="montoRecibido" class="block text-sm font-medium text-gray-700">Monto Recibido ($)</label>
+            <input type="number" id="montoRecibido" name="montoRecibido" required min="0.00" step="0.01" oninput="calculateBalance()" placeholder="0.00" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
+        </div>
+        
+        <div>
+            <label for="fechaPago" class="block text-sm font-medium text-gray-700">Fecha de Pago</label>
+            <input type="date" id="fechaPago" name="fechaPago" required class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
+        </div>
+
+        <div id="debtSummary" class="p-3 bg-indigo-50 text-indigo-800 text-sm rounded-lg shadow-inner space-y-1">
+            <p class="font-semibold">Resumen de Deuda:</p>
+            <p id="totalPendienteLabel">Deuda Bruta: <strong class="text-red-600">$0.00</strong></p>
+            <p id="saldoAFavorLabel" class="text-green-700">Saldo a Favor Disponible: <strong class="text-green-700">$0.00</strong></p>
+            <hr class="border-indigo-200 my-1">
+            <p id="montoNetoPendienteLabel" class="text-base font-bold">Total Neto a Pagar: <strong class="text-red-700">$0.00</strong></p>
+        </div>
+        
+        <div id="debtListContainer" class="hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Seleccione Deudas a Cubrir:</label>
+            <div id="debtList" class="debt-list bg-white">
+                <p class="p-3 text-gray-500">Seleccione una unidad para ver sus deudas.</p>
+            </div>
+            <p id="aplicacionPago" class="mt-2 text-sm font-medium text-gray-700">Monto aplicado a deudas: <strong class="text-blue-600">$0.00</strong></p>
+            <p id="saldoTransaccion" class="mt-1 text-sm font-medium text-gray-700">Saldo final de la transacción: <strong class="text-blue-600">$0.00</strong></p>
+        </div>
+        
+        <div class="flex space-x-2"> 
+            <button id="btn_procesar" type="submit" disabled 
+                    class="w-full flex-1 justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                Registrar Pago
+            </button>
+            <button id="btn_reimprimir" disabled 
+                    class="w-full flex-none py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-gray-800 bg-yellow-400 hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-150 ease-in-out">
+                Ticket
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<script>
+    // Variables globales
+    let globalUnitDebtData = {};
+    let globalUnits = [];
+    let globalCapturistas = [];
+    let lastProcessedIdPago = null; 
+    
+    $(document).ready(function() {
+        google.script.run.withSuccessHandler(initializeForm).getUnitList();
+        google.script.run.withSuccessHandler(handleCapturistas).getCapturistaList();
+        
+        const today = new Date().toISOString().substring(0, 10);
+        $('#fechaPago').val(today);
+        
+        $('#btn_reimprimir').on('click', function(e) {
+            e.preventDefault();
+            if (lastProcessedIdPago) {
+                google.script.run.showTicketDialog(lastProcessedIdPago); 
+            } else {
+                alert('No hay un pago reciente para reimprimir.');
+            }
+        });
+    });
+    
+    function initializeForm(result) {
+        const $unitSelect = $('#idUnidad');
+        
+        if (result.error) {
+            $('#messages').html(`<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error: ${result.error}</div>`);
+            return;
+        }
+        
+        globalUnits = result.units || [];
+        
+        if ($unitSelect.hasClass("select2-hidden-accessible")) {
+            $unitSelect.select2('destroy');
+        }
+        
+        $unitSelect.empty();
+        $unitSelect.append('<option value="">Seleccione Unidad...</option>');
+        
+        if (globalUnits.length === 0) {
+            $('#messages').html('<div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative">No hay unidades registradas.</div>');
+            return;
+        }
+
+        globalUnits.forEach(unit => {
+            $unitSelect.append(`<option value="${unit.id}">${unit.departamento} (${unit.propietario})</option>`);
+        });
+
+        $unitSelect.select2({
+            width: '100%',
+            placeholder: "Buscar unidad o propietario...",
+            language: { noResults: function() { return "No se encontró la unidad"; } }
+        });
+
+        $unitSelect.off('select2:select').on('select2:select', function (e) {
+            loadDebt();
+        });
+    }
+
+    function handleCapturistas(result) {
+        const $capturistaSelect = $('#capturista');
+        
+        if (result.error) {
+            $('#messages').append(`<div class="text-red-600">Error al cargar capturistas: ${result.error}</div>`);
+            return;
+        }
+        
+        if ($capturistaSelect.hasClass("select2-hidden-accessible")) {
+            $capturistaSelect.select2('destroy');
+        }
+        
+        $capturistaSelect.empty();
+        $capturistaSelect.append('<option value="">Seleccione Capturista</option>');
+        
+        globalCapturistas = result.capturistas || [];
+        globalCapturistas.forEach(c => {
+            $capturistaSelect.append(`<option value="${c}">${c}</option>`);
+        });
+        
+        if (globalCapturistas.length > 0) {
+            $capturistaSelect.val(globalCapturistas[0]);
+        }
+
+        $capturistaSelect.select2({ width: '100%' });
+    }
+
+    function loadDebt() {
+        const idUnidad = document.getElementById('idUnidad').value;
+        const btnProcesar = document.getElementById('btn_procesar'); 
+        const unitInfo = document.getElementById('unitInfo');
+        document.getElementById('debtListContainer').classList.add('hidden');
+        btnProcesar.disabled = true;
+
+        document.getElementById('btn_reimprimir').disabled = (lastProcessedIdPago === null);
+
+        if (!idUnidad) {
+            document.getElementById('debtList').innerHTML = '<p class="p-3 text-gray-500">Seleccione una unidad para ver sus deudas.</p>';
+            unitInfo.textContent = '';
+            document.getElementById('totalPendienteLabel').innerHTML = 'Deuda Bruta: <strong class="text-red-600">$0.00</strong>';
+            document.getElementById('saldoAFavorLabel').innerHTML = 'Saldo a Favor Disponible: <strong class="text-green-700">$0.00</strong>';
+            document.getElementById('montoNetoPendienteLabel').innerHTML = 'Total Neto a Pagar: <strong class="text-red-700">$0.00</strong>';
+            calculateBalance();
+            return;
+        }
+
+        unitInfo.textContent = 'Cargando deudas...';
+        
+        google.script.run
+            .withSuccessHandler(handleDebtLoad)
+            .withFailureHandler(function(error) {
+                document.getElementById('messages').innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error al cargar deudas: ${error}</div>`;
+                unitInfo.textContent = '';
+            })
+            .getUnitDebt(idUnidad);
+    }
+
+    function handleDebtLoad(result) {
+        const debtListDiv = document.getElementById('debtList');
+        const unitInfo = document.getElementById('unitInfo');
+        const btnProcesar = document.getElementById('btn_procesar'); 
+        const montoRecibidoInput = document.getElementById('montoRecibido');
+        
+        if (result.error) {
+            unitInfo.textContent = '';
+            document.getElementById('messages').innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error: ${result.error}</div>`;
+            debtListDiv.innerHTML = '<p class="p-3 text-gray-500">Error al cargar la deuda.</p>';
+            return;
+        }
+        
+        globalUnitDebtData = result;
+        unitInfo.textContent = `Propietario: ${result.propietario}`;
+        
+        document.getElementById('totalPendienteLabel').innerHTML = `Deuda Bruta: <strong class="text-red-600">$${result.totalPendiente.toFixed(2)}</strong>`;
+        document.getElementById('saldoAFavorLabel').innerHTML = `Saldo a Favor Disponible: <strong class="text-green-700">$${result.saldoAFavor.toFixed(2)}</strong>`;
+        document.getElementById('montoNetoPendienteLabel').innerHTML = `Total Neto a Pagar: <strong class="text-red-700">$${result.montoNetoPendiente.toFixed(2)}</strong>`;
+
+        debtListDiv.innerHTML = '';
+        if (result.deudas.length === 0) {
+            debtListDiv.innerHTML = '<p class="p-3 text-gray-500">No hay deudas pendientes. Cualquier pago generará un saldo a favor.</p>';
+        } else {
+            result.deudas.forEach((debt, index) => {
+                const date = new Date(debt.mesCorte);
+                const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+                const isFine = debt.isFine ? 'text-orange-600' : 'text-blue-600';
+                
+                const itemHtml = `<div class="debt-item flex justify-between items-center selected" data-index="${index}" data-monto="${debt.montoBase}">
+                    <div>
+                        <span class="font-medium ${isFine}">${debt.concepto}</span>
+                        <span class="text-xs text-gray-500 block">Fecha Corte: ${localDate.toLocaleDateString()}</span>
+                    </div>
+                    <span class="font-bold text-lg">$${debt.montoBase.toFixed(2)}</span>
+                </div>`;
+                debtListDiv.innerHTML += itemHtml;
+            });
+
+            document.querySelectorAll('.debt-item').forEach(item => {
+                item.addEventListener('click', toggleDebtSelection);
+            });
+            document.getElementById('debtListContainer').classList.remove('hidden');
+        }
+
+        montoRecibidoInput.value = ""; 
+        calculateBalance();
+    }
+
+    function toggleDebtSelection(event) {
+        const item = event.currentTarget;
+        item.classList.toggle('selected');
+        calculateBalance();
+    }
+
+    function calculateBalance() {
+        const montoRecibido = parseFloat(document.getElementById('montoRecibido').value) || 0;
+        const saldoAFavorInicial = globalUnitDebtData.saldoAFavor || 0;
+        const montoDisponibleParaAplicar = montoRecibido + saldoAFavorInicial;
+
+        let montoTotalDeudasSeleccionadas = 0;
+        const selectedDebts = document.querySelectorAll('.debt-item.selected');
+
+        selectedDebts.forEach(item => {
+            montoTotalDeudasSeleccionadas += parseFloat(item.dataset.monto);
+        });
+
+        const montoAplicadoADeuda = Math.min(montoDisponibleParaAplicar, montoTotalDeudasSeleccionadas);
+        const saldoTransaccion = montoDisponibleParaAplicar - montoTotalDeudasSeleccionadas;
+
+        document.getElementById('aplicacionPago').innerHTML = `Monto aplicado a deudas: <strong class="text-blue-600">$${montoAplicadoADeuda.toFixed(2)}</strong>`;
+        
+        if (saldoTransaccion >= 0) {
+            document.getElementById('saldoTransaccion').innerHTML = `Saldo final a favor (Anticipo): <strong class="text-green-600">$${saldoTransaccion.toFixed(2)}</strong>`;
+        } else {
+            // INFORMATIVO: Muestra lo que falta, pero NO bloquea
+            document.getElementById('saldoTransaccion').innerHTML = `Deuda restante por cubrir: <strong class="text-orange-600">$${Math.abs(saldoTransaccion).toFixed(2)}</strong>`;
+        }
+
+        const idUnidad = document.getElementById('idUnidad').value;
+        const capturista = document.getElementById('capturista').value;
+        
+        // Permite pagar si hay monto recibido mayor a 0, o si se está usando puro saldo a favor
+        const isMontoValid = montoRecibido > 0 || (montoRecibido === 0 && saldoAFavorInicial > 0); 
+        
+        // Botón habilitado si los campos están llenos y hay dinero
+        const canSubmit = idUnidad && capturista && isMontoValid;
+        document.getElementById('btn_procesar').disabled = !canSubmit; 
+    }
+
+    function submitPayment(event) {
+        event.preventDefault();
+        const form = document.getElementById('paymentForm');
+        const messagesDiv = document.getElementById('messages');
+        const btnProcesar = document.getElementById('btn_procesar'); 
+        const btnReimprimir = document.getElementById('btn_reimprimir');
+        
+        const montoRecibido = parseFloat(document.getElementById('montoRecibido').value) || 0;
+        const saldoAFavorInicial = globalUnitDebtData.saldoAFavor || 0;
+        const montoDisponibleParaAplicar = montoRecibido + saldoAFavorInicial;
+
+        let montoTotalDeudasSeleccionadas = 0;
+        const selectedDebts = document.querySelectorAll('.debt-item.selected');
+        const deudasAplicadas = [];
+
+        selectedDebts.forEach(item => {
+            const monto = parseFloat(item.dataset.monto);
+            montoTotalDeudasSeleccionadas += monto;
+            
+            // Pasamos las deudas al script GS, allá se ordenarán y procesarán por FIFO
+            deudasAplicadas.push({
+                idCargo: globalUnitDebtData.deudas[parseInt(item.dataset.index)].idCargo
+            });
+        });
+        
+        const saldoTransaccion = montoDisponibleParaAplicar - montoTotalDeudasSeleccionadas;
+        const saldoFinalGenerado = saldoTransaccion > 0 ? saldoTransaccion : 0;
+
+        const confirmMsg = `Se aplicará un total de $${montoDisponibleParaAplicar.toFixed(2)}.\n\n` +
+                             `Deuda seleccionada total: $${montoTotalDeudasSeleccionadas.toFixed(2)}.\n` +
+                             `Nuevo Saldo a Favor a guardar: $${saldoFinalGenerado.toFixed(2)}.\n\n` +
+                             `¿Desea continuar con el registro?`;
+                             
+        if (!confirm(confirmMsg)) {
+            btnProcesar.disabled = false;
+            return;
+        }
+
+        btnProcesar.disabled = true;
+        messagesDiv.innerHTML = '<div class="text-blue-600 px-4 py-3 rounded relative">Procesando pago...</div>';
+
+        const paymentData = {
+            idUnidad: form.idUnidad.value,
+            montoRecibido: montoRecibido,
+            fechaPagoStr: form.fechaPago.value,
+            capturista: form.capturista.value,
+            deudasAplicadas: deudasAplicadas 
+        };
+
+        google.script.run
+            .withSuccessHandler(function(response) {
+                if (response.success) {
+                    lastProcessedIdPago = response.idPago; 
+                    btnReimprimir.disabled = false; 
+                    
+                    if (response.idPago) {
+                         google.script.run.showTicketDialog(response.idPago); 
+                    }
+                    
+                    messagesDiv.innerHTML = `<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+                        ${response.message} Nuevo Saldo a Favor: $${response.nuevoSaldoAFavor.toFixed(2)} (Ticket: ${response.idPago})
+                    </div>`;
+
+                    form.reset();
+                    document.getElementById('fechaPago').value = new Date().toISOString().substring(0, 10);
+                    
+                    $('#idUnidad').val(null).trigger('change');
+                    // Refrescar deudas después de pago
+                    loadDebt(); 
+
+                } else {
+                    messagesDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error: ${response.message}</div>`;
+                    btnProcesar.disabled = false;
+                }
+            })
+            .withFailureHandler(function(error) {
+                messagesDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error en la ejecución del script: ${error}</div>`;
+                btnProcesar.disabled = false;
+            })
+            .processPayment(paymentData);
+    }
+</script>
+
+</body>
+</html>

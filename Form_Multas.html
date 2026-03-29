@@ -1,0 +1,198 @@
+<script>
+    // Global variable to store configuration data
+    let globalUnits = [];
+    let globalFines = [];
+    let globalCapturistas = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Carga la lista de unidades, capturistas y multas al inicio
+        google.script.run.withSuccessHandler(initializeForm).getUnitList();
+        google.script.run.withSuccessHandler(handleCapturistas).getCapturistaList();
+        google.script.run.withSuccessHandler(handleFines).getFineConfig();
+    });
+
+    function handleCapturistas(result) {
+        if (result.error) {
+            document.getElementById('messages').innerHTML = '<div class="text-red-600">Error al cargar capturistas: ' + result.error + '</div>';
+            return;
+        }
+        globalCapturistas = result.capturistas || [];
+        const capturistaSelect = document.getElementById('capturista');
+        capturistaSelect.innerHTML = '<option value="">Seleccione Capturista</option>';
+        globalCapturistas.forEach(c => {
+            capturistaSelect.innerHTML += `<option value="${c}">${c}</option>`;
+        });
+        if (globalCapturistas.length > 0) {
+            // Intenta seleccionar el primer capturista por defecto si existe
+            capturistaSelect.value = globalCapturistas[0];
+        }
+    }
+    
+    function handleFines(result) {
+        if (result.error) {
+            // Muestra error pero permite que el formulario se inicie
+            document.getElementById('messages').innerHTML += '<div class="text-red-600">ADVERTENCIA: ' + result.error + ' Por favor, cree la hoja CONFIG_MULTAS.</div>';
+            return;
+        }
+        globalFines = result.fines || [];
+        const fineSelect = document.getElementById('idMulta');
+        fineSelect.innerHTML = '<option value="">Seleccione Tipo de Multa</option>';
+        globalFines.forEach(f => {
+            fineSelect.innerHTML += `<option value="${f.idMulta}">${f.concepto} ($${f.montoBase.toFixed(2)})</option>`;
+        });
+        updateFineDetails();
+    }
+
+    function initializeForm(result) {
+        const unitSelect = document.getElementById('idUnidad');
+        
+        if (result.error) {
+            document.getElementById('messages').innerHTML += '<div class="text-red-600">Error: ' + result.error + '</div>';
+            return;
+        }
+        
+        globalUnits = result.units || [];
+        
+        if (globalUnits.length === 0) {
+            document.getElementById('messages').innerHTML += '<div class="text-red-600">No hay unidades registradas.</div>';
+            return;
+        }
+
+        unitSelect.innerHTML = '<option value="">Seleccione Unidad</option>';
+        globalUnits.forEach(unit => {
+            unitSelect.innerHTML += `<option value="${unit.id}">${unit.departamento} (${unit.propietario})</option>`;
+        });
+
+        // Establece la fecha predeterminada como hoy
+        const today = new Date().toISOString().substring(0, 10);
+        document.getElementById('fechaAplicacion').value = today;
+    }
+
+    function updateFineDetails() {
+        const idMulta = document.getElementById('idMulta').value;
+        const fineDetailsDiv = document.getElementById('fineDetails');
+        const submitButton = document.getElementById('submitButton');
+        
+        if (!idMulta) {
+            fineDetailsDiv.innerHTML = '<p class="text-gray-500">Seleccione un tipo de multa para ver los detalles.</p>';
+            submitButton.disabled = true;
+            return;
+        }
+        
+        const fine = globalFines.find(f => f.idMulta === idMulta);
+        
+        if (fine) {
+            const ppText = fine.tasaProntoPago > 0 ? 
+                `Descuento PP: ${(fine.tasaProntoPago * 100).toFixed(0)}% (Día ${fine.diaLimitePP})` :
+                'No aplica Descuento por Pronto Pago.';
+            
+            fineDetailsDiv.innerHTML = `
+                <p><strong>Monto Base:</strong> $${fine.montoBase.toFixed(2)}</p>
+                <p><strong>Descuento:</strong> ${ppText}</p>
+            `;
+            // Habilita el botón solo si la unidad y la multa han sido seleccionadas
+            submitButton.disabled = document.getElementById('idUnidad').value === "";
+        } else {
+             fineDetailsDiv.innerHTML = '<p class="text-red-600">Error: Configuración de multa no encontrada.</p>';
+             submitButton.disabled = true;
+        }
+    }
+    
+    function validateForm() {
+        const idUnidad = document.getElementById('idUnidad').value;
+        const idMulta = document.getElementById('idMulta').value;
+        const capturista = document.getElementById('capturista').value;
+        
+        return idUnidad !== "" && idMulta !== "" && capturista !== "";
+    }
+
+
+    function submitFine(event) {
+        event.preventDefault();
+        const form = document.getElementById('fineForm');
+        const messagesDiv = document.getElementById('messages');
+        const submitButton = document.getElementById('submitButton');
+        
+        // Simple form validation
+        if (!validateForm()) {
+            messagesDiv.innerHTML = '<div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative">Por favor, complete todos los campos requeridos.</div>';
+            return;
+        }
+        
+        submitButton.disabled = true;
+        messagesDiv.innerHTML = '<div class="text-blue-600 px-4 py-3 rounded relative">Registrando multa...</div>';
+
+        const fineData = {
+            idUnidad: form.idUnidad.value,
+            idMulta: form.idMulta.value,
+            capturista: form.capturista.value,
+            fechaAplicacionStr: form.fechaAplicacion.value
+        };
+
+        google.script.run
+            .withSuccessHandler(function(response) {
+                if (response.success) {
+                    messagesDiv.innerHTML = `<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">${response.message}</div>`;
+                    form.reset();
+                    document.getElementById('fechaAplicacion').value = new Date().toISOString().substring(0, 10);
+                    updateFineDetails(); // Clear details
+                } else {
+                    messagesDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error: ${response.message}</div>`;
+                }
+                submitButton.disabled = false;
+            })
+            .withFailureHandler(function(error) {
+                messagesDiv.innerHTML = `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">Error en la ejecución del script: ${error}</div>`;
+                submitButton.disabled = false;
+            })
+            .processFineRegistration(fineData);
+    }
+</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<div class="p-6 bg-gray-50 min-h-screen">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Registro de Multa</h1>
+    
+    <div id="messages" class="mb-4"></div>
+
+    <form id="fineForm" onsubmit="submitFine(event)" class="space-y-4">
+        
+        <!-- ID Unidad -->
+        <div>
+            <label for="idUnidad" class="block text-sm font-medium text-gray-700">Unidad/Departamento</label>
+            <select id="idUnidad" name="idUnidad" onchange="updateFineDetails()" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                <option value="">Cargando unidades...</option>
+            </select>
+        </div>
+
+        <!-- Tipo de Multa -->
+        <div>
+            <label for="idMulta" class="block text-sm font-medium text-gray-700">Tipo de Multa</label>
+            <select id="idMulta" name="idMulta" onchange="updateFineDetails()" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                <option value="">Cargando multas...</option>
+            </select>
+            <div id="fineDetails" class="mt-2 p-3 bg-indigo-50 text-indigo-800 text-sm rounded-lg shadow-inner">
+                <p class="text-gray-500">Seleccione un tipo de multa para ver los detalles.</p>
+            </div>
+        </div>
+
+        <!-- Capturista -->
+        <div>
+            <label for="capturista" class="block text-sm font-medium text-gray-700">Registrado Por (Capturista)</label>
+            <select id="capturista" name="capturista" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                <option value="">Cargando capturistas...</option>
+            </select>
+        </div>
+
+        <!-- Fecha Aplicación -->
+        <div>
+            <label for="fechaAplicacion" class="block text-sm font-medium text-gray-700">Fecha de Aplicación</label>
+            <input type="date" id="fechaAplicacion" name="fechaAplicacion" required class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
+        </div>
+
+        <!-- Botón de Envío -->
+        <button id="submitButton" type="submit" disabled class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+            Registrar Multa
+        </button>
+    </form>
+</div>

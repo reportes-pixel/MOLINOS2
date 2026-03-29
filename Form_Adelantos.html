@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        /* Estilos para que Select2 se vea igual que los otros inputs */
+        .select2-container .select2-selection--single {
+            height: 42px !important;
+            border: 2px solid #e5e7eb !important;
+            border-radius: 0.5rem !important;
+            display: flex;
+            align-items: center;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 40px !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-6">
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 border-t-8 border-green-500">
+        <h2 class="text-2xl font-bold mb-2 text-green-700 flex items-center">🌟 Pago Adelantado</h2>
+        <p class="text-xs text-gray-600 mb-6">Genera las mensualidades futuras a precio de <b>Pronto Pago</b> y emite el comprobante en un solo paso.</p>
+        
+        <form id="adelantoForm" onsubmit="enviarAdelanto(event)" class="space-y-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-700">Unidad que pagará:</label>
+                <select id="idUnidad" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500">
+                    <option value="">Cargando unidades...</option>
+                </select>
+            </div>
+            
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Meses a pagar:</label>
+                    <input type="number" id="numMeses" min="1" max="24" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500" placeholder="Ej: 6">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Mes de Inicio:</label>
+                    <input type="month" id="mesInicio" required readonly class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none bg-gray-100 text-gray-500 cursor-not-allowed" title="Este campo se calcula automáticamente">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold text-gray-700">Atendido por:</label>
+                <select id="capturista" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none focus:border-green-500"></select>
+            </div>
+            
+            <button id="btn_procesar" type="submit" disabled class="w-full mt-4 bg-green-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                COBRAR Y GENERAR TICKET
+            </button>
+        </form>
+        <div id="resultado" class="mt-4 text-center text-sm"></div>
+    </div>
+
+    <script>
+        let unidadesList = [];
+
+        $(document).ready(function() {
+            // Cargar unidades y activar Select2
+            google.script.run.withSuccessHandler(res => {
+                const $sel = $('#idUnidad');
+                $sel.empty();
+                $sel.append('<option value="">Seleccione Unidad...</option>');
+                unidadesList = res.units;
+                res.units.forEach(u => $sel.append(`<option value="${u.id}">${u.departamento} (${u.propietario})</option>`));
+                
+                $sel.select2({
+                    width: '100%',
+                    placeholder: "Buscar unidad o propietario..."
+                });
+
+                // EVENTO MAGICO: Al elegir unidad, buscar el mes
+                $sel.on('change', function() {
+                    const id = $(this).val();
+                    if(id) {
+                        $('#mesInicio').val('');
+                        $('#resultado').html('⏳ Calculando el mes siguiente disponible...');
+                        $('#btn_procesar').prop('disabled', true);
+                        
+                        google.script.run.withSuccessHandler(mesCalculado => {
+                            $('#mesInicio').val(mesCalculado);
+                            $('#resultado').html('');
+                            $('#btn_procesar').prop('disabled', false);
+                        }).obtenerMesInicioAdelanto(id);
+                    } else {
+                        $('#mesInicio').val('');
+                        $('#btn_procesar').prop('disabled', true);
+                    }
+                });
+            }).getUnitList();
+            
+            // Cargar capturistas
+            google.script.run.withSuccessHandler(res => {
+                const sel = document.getElementById('capturista');
+                res.capturistas.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`);
+                if(res.capturistas.length > 0) sel.value = res.capturistas[0];
+            }).getCapturistaList();
+        });
+
+        function enviarAdelanto(e) {
+            e.preventDefault();
+            
+            const idUnidad = $('#idUnidad').val();
+            const numMeses = $('#numMeses').val();
+            const mesInicio = $('#mesInicio').val();
+            const capturista = $('#capturista').val();
+            
+            // Buscar datos para el mensaje
+            const unidadInfo = unidadesList.find(u => u.id === idUnidad);
+            const nombreText = unidadInfo ? `${unidadInfo.departamento} (${unidadInfo.propietario})` : idUnidad;
+            
+            // Cálculo del Total (usando los $380 que confirmaste)
+            const total = (parseInt(numMeses) * 380).toFixed(2); 
+            
+            // Formatear el mes para que sea amigable en la alerta
+            const [yyyy, mm] = mesInicio.split('-');
+            const nombreMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            const mesNombre = nombreMeses[parseInt(mm)-1];
+            
+            // ⭐️ MENSAJE DE CONFIRMACIÓN
+            const confirmMsg = `¿Confirmas el pago de ${numMeses} mes(es) por adelantado para la unidad ${nombreText}?\n\n` +
+                               `▶ Inicia a partir de: ${mesNombre} ${yyyy}\n` +
+                               `▶ Total a cobrar: $${total}\n\n` +
+                               `Se generarán las cuotas futuras automáticamente.`;
+                               
+            if(!confirm(confirmMsg)) {
+                return; // Si dice que no, se cancela la operación
+            }
+
+            // Si dice que sí, procedemos
+            $('#btn_procesar').prop('disabled', true);
+            $('#resultado').html("⏳ Viajando al futuro y procesando pagos...");
+            
+            const data = {
+                idUnidad: idUnidad,
+                capturista: capturista,
+                numMeses: numMeses,
+                mesInicioStr: mesInicio + "-01" 
+            };
+
+            google.script.run.withSuccessHandler(res => {
+                if(res.success) {
+                    $('#resultado').html(`<p class="text-green-600 font-bold">✅ ${res.message}</p>`);
+                    google.script.run.showTicketDialog(res.idPago);
+                    
+                    // Limpiar el formulario
+                    $('#numMeses').val('');
+                    $('#idUnidad').val('').trigger('change');
+                } else {
+                    $('#resultado').html(`<p class="text-red-600 font-bold">❌ Error: ${res.message}</p>`);
+                    $('#btn_procesar').prop('disabled', false);
+                }
+            }).procesarAdelantoMensualidades(data);
+        }
+    </script>
+</body>
+</html>

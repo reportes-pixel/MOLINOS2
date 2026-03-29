@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <style>
+        body { font-family: 'Arial', sans-serif; padding: 10px; }
+        label { display: block; margin-top: 10px; font-weight: bold; color: #333; }
+        input[type="text"], input[type="number"], select {
+            width: 95%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #resultado { margin-top: 15px; padding: 10px; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h3>Registro de Cargo Extraordinario 💰</h3>
+    
+    <form id="cargoForm">
+        <label for="idUnidad">Seleccionar Unidad:</label>
+        <select id="idUnidad" name="idUnidad" required></select>
+
+        <label for="concepto">Concepto del Cargo:</label>
+        <input type="text" id="concepto" name="concepto" placeholder="Ej: Deuda CONVIVIR 2024" required>
+
+        <label for="monto">Monto (Ej: 1000.00):</label>
+        <input type="number" id="monto" name="monto" min="0.01" step="0.01" required>
+
+        <button type="submit" id="btnGuardar">Guardar Cargo</button>
+    </form>
+
+    <div id="resultado"></div>
+
+    <script>
+        // Carga la lista de unidades al abrir el formulario
+        document.addEventListener('DOMContentLoaded', () => {
+            // Llama a la nueva función puente que usa tu getUnitList()
+            google.script.run.withSuccessHandler(llenarUnidades).getIdsUnidadesParaForm();
+        });
+
+        function llenarUnidades(ids) {
+            const select = document.getElementById('idUnidad');
+            if (!ids || ids.length === 0) {
+                const option = document.createElement('option');
+                option.text = "No hay unidades registradas";
+                option.value = "";
+                select.appendChild(option);
+                document.getElementById('btnGuardar').disabled = true;
+            } else {
+                ids.forEach(id => {
+                    const option = document.createElement('option');
+                    option.text = id;
+                    option.value = id;
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        // Maneja el envío del formulario
+        document.getElementById('cargoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                idUnidad: form.idUnidad.value,
+                concepto: form.concepto.value,
+                monto: form.monto.value
+            };
+            
+            document.getElementById('btnGuardar').disabled = true;
+            document.getElementById('resultado').innerHTML = 'Guardando...';
+
+            google.script.run
+                .withSuccessHandler(manejarRespuesta)
+                .guardarCargoExtraordinario(data);
+        });
+
+        function manejarRespuesta(response) {
+            const resultadoDiv = document.getElementById('resultado');
+            document.getElementById('btnGuardar').disabled = false;
+            
+            if (response.success) {
+                resultadoDiv.style.backgroundColor = '#d4edda';
+                resultadoDiv.style.color = '#155724';
+                resultadoDiv.innerHTML = response.message;
+                // Limpiar los campos después del éxito
+                document.getElementById('concepto').value = '';
+                document.getElementById('monto').value = '';
+            } else {
+                resultadoDiv.style.backgroundColor = '#f8d7da';
+                resultadoDiv.style.color = '#721c24';
+                resultadoDiv.innerHTML = `Error: ${response.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

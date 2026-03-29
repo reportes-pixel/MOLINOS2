@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-6">
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 border-t-8 border-blue-500">
+        <h2 class="text-2xl font-bold mb-2 text-blue-700">🚗 Renta de Estacionamiento</h2>
+        <p class="text-xs text-gray-600 mb-6">El sistema cobrará automáticamente esta cuota junto con la mensualidad mientras el contrato esté vigente.</p>
+        
+        <form id="estForm" onsubmit="enviarEstacionamiento(event)" class="space-y-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-700">Unidad:</label>
+                <select id="idUnidad" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500"></select>
+            </div>
+            
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Mes Inicio:</label>
+                    <input type="month" id="fechaInicio" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Mes Término:</label>
+                    <input type="month" id="fechaTermino" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none">
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Costo Mensual ($):</label>
+                    <input type="number" id="monto" min="1" step="0.01" value="500.00" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-sm font-bold text-gray-700">Capturista:</label>
+                    <select id="capturista" required class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none"></select>
+                </div>
+            </div>
+            
+            <button id="btn_procesar" type="submit" class="w-full mt-4 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition">
+                CREAR CONTRATO
+            </button>
+        </form>
+        <div id="resultado" class="mt-4 text-center text-sm"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            google.script.run.withSuccessHandler(res => {
+                const sel = document.getElementById('idUnidad');
+                res.units.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.departamento} (${u.propietario})</option>`);
+            }).getUnitList();
+            
+            google.script.run.withSuccessHandler(res => {
+                const sel = document.getElementById('capturista');
+                res.capturistas.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`);
+                if(res.capturistas.length > 0) sel.value = res.capturistas[0];
+            }).getCapturistaList();
+        });
+
+        function enviarEstacionamiento(e) {
+            e.preventDefault();
+            document.getElementById('btn_procesar').disabled = true;
+            document.getElementById('resultado').innerHTML = "⏳ Guardando contrato...";
+            
+            const data = {
+                idUnidad: document.getElementById('idUnidad').value,
+                fechaInicio: document.getElementById('fechaInicio').value + "-01",
+                fechaTermino: document.getElementById('fechaTermino').value + "-28", // Día 28 para asegurar que cubre el mes
+                monto: document.getElementById('monto').value,
+                capturista: document.getElementById('capturista').value
+            };
+
+            google.script.run.withSuccessHandler(res => {
+                if(res.success) {
+                    document.getElementById('resultado').innerHTML = `<p class="text-green-600 font-bold">✅ ${res.message}</p>`;
+                    document.getElementById('estForm').reset();
+                } else {
+                    document.getElementById('resultado').innerHTML = `<p class="text-red-600 font-bold">❌ Error: ${res.message}</p>`;
+                }
+                document.getElementById('btn_procesar').disabled = false;
+            }).procesarRentaEstacionamiento(data);
+        }
+    </script>
+</body>
+</html>
