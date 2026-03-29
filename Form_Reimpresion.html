@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; padding: 10px; }
+        .container-box { max-width: 600px; margin: 0 auto; }
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-btn.active { background-color: #f59e0b; color: white; border-color: #f59e0b; }
+        .tab-btn.inactive { background-color: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+        .tab-btn.inactive:hover { background-color: #e2e8f0; }
+
+        .pago-card { border: 2px solid #fef3c7; transition: all 0.2s; cursor: pointer; }
+        .pago-card:hover { border-color: #f59e0b; background-color: #fffbeb; transform: translateY(-2px); }
+
+        .select2-container .select2-selection--single {
+            height: 42px !important;
+            border: 2px solid #e5e7eb !important;
+            border-radius: 0.5rem !important;
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 40px !important; }
+
+        @media print {
+            body { background-color: white; padding: 0; }
+            .no-print { display: none !important; }
+            .container-box { max-width: 100%; box-shadow: none; padding: 0; border: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-box p-5 bg-white shadow-xl rounded-xl border-t-8 border-amber-500 relative">
+    
+    <div id="areaBusqueda">
+        <div class="flex justify-between items-center mb-5 border-b pb-3">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-print text-amber-500 mr-2"></i> Reimpresión de Tickets</h2>
+        </div>
+
+        <div class="flex gap-2 mb-6">
+            <button type="button" id="tabUnidad" class="tab-btn active flex-1 py-2 rounded-lg font-bold border-2 text-sm" onclick="setMode('unidad')">
+                <i class="fas fa-home mr-1"></i> Por Departamento
+            </button>
+            <button type="button" id="tabFolio" class="tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2 text-sm" onclick="setMode('folio')">
+                <i class="fas fa-barcode mr-1"></i> Por Folio Directo
+            </button>
+        </div>
+
+        <div id="messages" class="mb-4 text-center text-sm font-bold"></div>
+
+        <div id="seccionUnidad" class="space-y-4 transition">
+            <div class="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <label class="block text-sm font-bold text-amber-900 mb-2">Seleccione la Unidad / Depto:</label>
+                <select id="idUnidad" class="w-full outline-none focus:border-amber-500">
+                    <option value="">Cargando unidades...</option>
+                </select>
+            </div>
+            
+            <div id="listaPagosContainer" class="hidden">
+                <p class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Historial de Pagos Recientes:</p>
+                <div id="listaPagos" class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                    </div>
+            </div>
+        </div>
+
+        <div id="seccionFolio" class="hidden space-y-4 transition">
+            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <label class="block text-sm font-bold text-blue-900 mb-2">Ingrese el Folio del Pago:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="inputFolio" placeholder="Ej: RGP-A1B2C3D4" class="w-full p-3 border-2 border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white font-bold uppercase tracking-wider text-center text-lg">
+                    <button type="button" id="btnBuscarFolio" onclick="buscarPorFolio()" class="bg-blue-600 text-white font-bold px-5 py-2 rounded-lg hover:bg-blue-700 transition shadow">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="areaTicket" class="hidden">
+        <div class="flex justify-between items-center mb-4 border-b pb-2 no-print">
+            <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-receipt text-amber-500 mr-2"></i>Recibo de Pago</h2>
+            <button type="button" onclick="volverABusqueda()" class="text-amber-600 font-bold hover:underline transition">
+                <i class="fas fa-arrow-left mr-1"></i> Volver a Buscar
+            </button>
+        </div>
+
+        <div class="bg-white border-2 border-gray-200 p-2 rounded-lg mb-4 flex justify-center shadow-sm">
+            <iframe id="ticketFrame" class="w-full h-[350px] border-0" srcdoc="<div style='text-align:center; padding:20px; color:gray; font-family:sans-serif; font-weight:bold;'><br><br><br>Dibujando ticket...</div>"></iframe>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-3 no-print">
+            <button type="button" onclick="imprimirTicket()" class="bg-gray-800 text-white font-bold py-3 rounded-lg shadow hover:bg-gray-700 transition flex justify-center items-center">
+                <i class="fas fa-print mr-2"></i> Imprimir
+            </button>
+            <button type="button" onclick="mostrarOpcionCorreo()" class="bg-blue-600 text-white font-bold py-3 rounded-lg shadow hover:bg-blue-700 transition flex justify-center items-center">
+                <i class="fas fa-envelope mr-2"></i> Enviar Correo
+            </button>
+        </div>
+
+        <div id="cajaCorreo" class="hidden bg-blue-50 p-4 rounded-lg border border-blue-200 mt-3 no-print transition">
+            <label class="block text-sm font-bold text-blue-900 mb-2">Correo Electrónico del Residente:</label>
+            <div class="flex flex-col gap-3 sm:flex-row sm:gap-2">
+                <input type="email" id="emailDestino" class="w-full p-3 text-base border-2 border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white" placeholder="ejemplo@correo.com">
+                <button type="button" onclick="enviarTicketPorCorreo()" id="btnEnviarCorreo" class="w-full sm:w-auto bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow flex justify-center items-center">
+                    <i class="fas fa-paper-plane mr-2 sm:hidden"></i> Enviar
+                </button>
+            </div>
+            <div id="msgCorreo" class="text-sm font-bold mt-3 text-center hidden"></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let lastProcessedIdPago = null;
+    let currentEmail = "";
+
+    $(document).ready(function() {
+        // Cargar Unidades
+        google.script.run.withSuccessHandler(res => {
+            const $sel = $('#idUnidad');
+            $sel.empty();
+            $sel.append('<option value="">Seleccione Unidad...</option>');
+            
+            if(res.units) {
+                res.units.forEach(u => {
+                    $sel.append(`<option value="${u.id}" data-email="${u.email || ''}">${u.departamento} (${u.propietario})</option>`);
+                });
+            }
+            
+            $sel.select2({
+                width: '100%',
+                placeholder: "Buscar unidad o propietario..."
+            });
+
+            // Al elegir unidad, buscar sus pagos
+            $sel.on('change', function() {
+                const idUnidad = $(this).val();
+                if(idUnidad) {
+                    currentEmail = $(this).select2('data')[0].element.dataset.email || "";
+                    buscarPagosPorUnidad(idUnidad);
+                } else {
+                    document.getElementById('listaPagosContainer').classList.add('hidden');
+                }
+            });
+        }).getUnitList();
+    });
+
+    function showToast(msg, isError) {
+        const messageDiv = document.getElementById('messages');
+        messageDiv.innerHTML = `<div class="p-3 rounded-lg mb-4 shadow-sm ${isError ? 'bg-red-100 text-red-800 border-l-4 border-red-500' : 'bg-green-100 text-green-800 border-l-4 border-green-500'}">${msg}</div>`;
+        setTimeout(() => { messageDiv.innerHTML = ''; }, 5000);
+    }
+
+    function setMode(modo) {
+        const tabUnidad = document.getElementById('tabUnidad');
+        const tabFolio = document.getElementById('tabFolio');
+        const secUnidad = document.getElementById('seccionUnidad');
+        const secFolio = document.getElementById('seccionFolio');
+        
+        document.getElementById('messages').innerHTML = '';
+
+        if (modo === 'unidad') {
+            tabUnidad.className = "tab-btn active flex-1 py-2 rounded-lg font-bold border-2 text-sm";
+            tabFolio.className = "tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2 text-sm";
+            secUnidad.classList.remove('hidden');
+            secFolio.classList.add('hidden');
+        } else {
+            tabFolio.className = "tab-btn active flex-1 py-2 rounded-lg font-bold border-2 text-sm";
+            tabUnidad.className = "tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2 text-sm";
+            secFolio.classList.remove('hidden');
+            secUnidad.classList.add('hidden');
+        }
+    }
+
+    // --- BÚSQUEDA POR UNIDAD ---
+    function buscarPagosPorUnidad(idUnidad) {
+        const lista = document.getElementById('listaPagos');
+        const cont = document.getElementById('listaPagosContainer');
+        
+        lista.innerHTML = '<div class="text-center p-4 text-amber-600 font-bold"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>Buscando historial...</div>';
+        cont.classList.remove('hidden');
+
+        // REUTILIZAMOS UNA FUNCIÓN QUE YA TIENES EN TU BACKEND (La misma de cancelación)
+        google.script.run.withSuccessHandler(pagos => {
+            lista.innerHTML = "";
+            if (pagos.length === 0) {
+                lista.innerHTML = '<div class="p-3 text-center text-gray-500 font-bold bg-gray-50 rounded-lg">No hay pagos recientes registrados para esta unidad.</div>';
+                return;
+            }
+
+            pagos.forEach(p => {
+                const div = document.createElement('div');
+                div.className = "pago-card p-4 bg-white rounded-lg flex justify-between items-center shadow-sm";
+                div.innerHTML = `
+                    <div>
+                        <span class="text-xs font-bold text-gray-400 uppercase">Folio:</span>
+                        <span class="font-bold text-amber-600 block text-lg leading-none">${p.idPago}</span>
+                        <span class="text-xs text-gray-500 font-semibold"><i class="far fa-calendar-alt mr-1"></i>${p.fecha}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase block">Monto Pagado</span>
+                        <span class="font-black text-green-600 text-xl">$${p.monto.toFixed(2)}</span>
+                    </div>
+                `;
+                div.onclick = () => renderizarTicket(p.idPago);
+                lista.appendChild(div);
+            });
+        }).withFailureHandler(err => {
+            lista.innerHTML = `<div class="p-3 text-center text-red-500 font-bold bg-red-50 rounded-lg">Error: ${err.message}</div>`;
+        }).ADMIN_obtenerPagosPorUnidad(idUnidad);
+    }
+
+    // --- BÚSQUEDA DIRECTA POR FOLIO ---
+    function buscarPorFolio() {
+        const folio = document.getElementById('inputFolio').value.trim().toUpperCase();
+        if (!folio) { showToast("Ingresa un folio válido.", true); return; }
+        
+        const btn = document.getElementById('btnBuscarFolio');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        // Comprobar que existe pidiendo el HTML directamente
+        renderizarTicket(folio, btn);
+    }
+
+    // --- RENDERIZADO DEL TICKET EN EL IFRAME ---
+    function renderizarTicket(idPago, btnCargando = null) {
+        document.getElementById('areaBusqueda').classList.add('hidden');
+        document.getElementById('areaTicket').classList.remove('hidden');
+        document.getElementById('emailDestino').value = currentEmail; // Prellenado de correo
+        lastProcessedIdPago = idPago;
+
+        google.script.run.withSuccessHandler(htmlResult => {
+            if (btnCargando) { btnCargando.innerHTML = '<i class="fas fa-search"></i>'; btnCargando.disabled = false; }
+            
+            if(htmlResult.success) {
+                document.getElementById('ticketFrame').srcdoc = htmlResult.html;
+            } else {
+                document.getElementById('ticketFrame').srcdoc = `<div style="color:red; text-align:center; margin-top:30px; font-family:sans-serif; font-weight:bold;">❌ Error al encontrar el ticket:<br>${htmlResult.error}</div>`;
+            }
+        }).withFailureHandler(err => {
+            if (btnCargando) { btnCargando.innerHTML = '<i class="fas fa-search"></i>'; btnCargando.disabled = false; }
+            document.getElementById('ticketFrame').srcdoc = `<div style="color:red; text-align:center; margin-top:30px; font-family:sans-serif; font-weight:bold;">❌ Error de conexión.</div>`;
+        }).generatePaymentTicketHtml(idPago, true); // true = formato limpio sin botones en el HTML
+    }
+
+    // --- ACCIONES DEL TICKET ---
+    function volverABusqueda() {
+        document.getElementById('areaTicket').classList.add('hidden');
+        document.getElementById('cajaCorreo').classList.add('hidden');
+        document.getElementById('msgCorreo').classList.add('hidden');
+        document.getElementById('ticketFrame').srcdoc = "<div style='text-align:center; padding:20px; color:gray; font-family:sans-serif; font-weight:bold;'><br><br><br>Dibujando ticket...</div>";
+        document.getElementById('areaBusqueda').classList.remove('hidden');
+    }
+
+    function imprimirTicket() {
+        const iframe = document.getElementById('ticketFrame');
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+    }
+
+    function mostrarOpcionCorreo() {
+        document.getElementById('cajaCorreo').classList.remove('hidden');
+    }
+
+    function enviarTicketPorCorreo() {
+        const email = document.getElementById('emailDestino').value.trim();
+        const btn = document.getElementById('btnEnviarCorreo');
+        const msg = document.getElementById('msgCorreo');
+
+        if(!email || !email.includes('@')) {
+            msg.innerText = "Por favor, ingresa un correo válido.";
+            msg.className = "text-sm font-bold mt-3 text-center text-red-500 block";
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+        msg.innerText = "Conectando con servidor de correo...";
+        msg.className = "text-sm font-bold mt-3 text-center text-blue-500 block";
+
+        google.script.run.withSuccessHandler(res => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane mr-2 sm:hidden"></i> Enviar';
+            msg.innerText = res.message;
+            msg.className = res.success ? "text-sm font-bold mt-3 text-center text-green-600 block" : "text-sm font-bold mt-3 text-center text-red-600 block";
+        }).enviarTicketPorCorreo(lastProcessedIdPago, email);
+    }
+</script>
+
+</body>
+</html>

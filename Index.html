@@ -58,7 +58,6 @@
         </header>
 
         <main class="flex-grow p-6 max-w-6xl mx-auto w-full">
-            
             <div class="mb-8 block-categoria" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
                 <h3 class="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4"><i class="fas fa-wallet text-emerald-500 mr-2"></i> Cobranza Diaria</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -70,9 +69,18 @@
                         <div class="bg-blue-100 p-3 rounded-lg mr-4"><i class="fas fa-fast-forward text-blue-600 text-xl"></i></div>
                         <span class="font-bold text-gray-700 text-sm">Adelantar Mensualidad</span>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('generarCortePagos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                        <div class="bg-purple-100 p-3 rounded-lg mr-4"><i class="fas fa-calendar-day text-purple-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Corte Diario</span>
+
+
+                    
+                 <div onclick="abrirModulo('Form_CorteDiario')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
+    <div class="bg-purple-100 p-3 rounded-lg mr-4"><i class="fas fa-calendar-day text-purple-600 text-xl"></i></div>
+    <span class="font-bold text-gray-700 text-sm">Corte Diario</span>
+</div>
+
+
+                    <div onclick="abrirModulo('Form_Reimpresion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
+                        <div class="bg-amber-100 p-3 rounded-lg mr-4"><i class="fas fa-print text-amber-600 text-xl"></i></div>
+                        <span class="font-bold text-gray-700 text-sm">Reimprimir Ticket</span>
                     </div>
                     <div onclick="ejecutarFuncionServidor('reporteEstadoDeCuenta_SEPARADO')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
                         <div class="bg-indigo-100 p-3 rounded-lg mr-4"><i class="fas fa-user-clock text-indigo-600 text-xl"></i></div>
@@ -142,7 +150,6 @@
                     </div>
                 </div>
             </div>
-
         </main>
     </div>
 
@@ -154,7 +161,7 @@
             <span id="workspace-title" class="font-bold text-gray-500 text-sm uppercase">Cargando...</span>
         </div>
         
-        <div id="app-container" class="flex-grow p-4 md:p-8 w-full max-w-5xl mx-auto h-[85vh]">
+        <div id="app-container" class="flex-grow p-2 md:p-4 w-full max-w-5xl mx-auto h-[85vh]">
             </div>
     </div>
 
@@ -163,9 +170,7 @@
         let WEBAPP_URL = "";
 
         window.onload = () => {
-            // Obtenemos los usuarios para el login
             google.script.run.withSuccessHandler(llenarSelectUsuarios).obtenerNombresUsuariosActivos();
-            // Obtenemos la URL secreta de la Web App para los iFrames
             google.script.run.withSuccessHandler((url) => { WEBAPP_URL = url; }).getAppUrl();
         };
 
@@ -179,29 +184,21 @@
             const user = document.getElementById('loginUser').value;
             const pass = document.getElementById('loginPass').value;
             const errorDiv = document.getElementById('loginError');
-            
-            if(!user || !pass) {
-                errorDiv.innerText = "Selecciona usuario y PIN.";
-                errorDiv.classList.remove('hidden'); return;
-            }
-
+            if(!user || !pass) { errorDiv.innerText = "Selecciona usuario y PIN."; errorDiv.classList.remove('hidden'); return; }
             document.getElementById('btnLogin').classList.add('hidden');
             document.getElementById('loginLoader').classList.remove('hidden');
             errorDiv.classList.add('hidden');
-
             google.script.run.withSuccessHandler(procesarLogin).validarLoginLogin(user, pass);
         }
 
         function procesarLogin(res) {
             document.getElementById('loginLoader').classList.add('hidden');
             document.getElementById('btnLogin').classList.remove('hidden');
-
             if(res.success) {
                 usuarioActual = res;
                 document.getElementById('userNameDisplay').innerText = res.nombre;
                 document.getElementById('userRoleDisplay').innerText = res.rol;
                 aplicarPermisosVisuales(res.rol);
-                
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
             } else {
@@ -221,43 +218,40 @@
         }
 
         function aplicarPermisosVisuales(rolUsuario) {
-            // Revisa TODOS los elementos que tengan data-roles (Bloques enteros y botones individuales)
             const elementosRestringidos = document.querySelectorAll('[data-roles]');
             elementosRestringidos.forEach(el => {
                 const rolesPermitidos = el.getAttribute('data-roles').split(',');
-                if(!rolesPermitidos.includes(rolUsuario)) {
-                    el.style.display = 'none';
-                } else {
-                    el.style.display = ''; // Lo deja por defecto (flex o block)
-                }
+                el.style.display = rolesPermitidos.includes(rolUsuario) ? '' : 'none';
             });
         }
 
-        // --- APERTURA DE FORMULARIOS HTML VÍA IFRAME ---
         function abrirModulo(nombreArchivoHtml) {
-            if(!WEBAPP_URL) {
-                alert("Cargando conexión con el servidor. Intenta en un segundo..."); return;
-            }
-
+            if(!WEBAPP_URL) { alert("Cargando conexión..."); return; }
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-workspace').classList.remove('hidden');
             document.getElementById('workspace-title').innerText = nombreArchivoHtml.replace('Form_', '').replace('_', ' ');
             
             const contenedor = document.getElementById('app-container');
-            // AQUÍ OCURRE LA MAGIA: Insertamos el iFrame apuntando a la URL del form
-            contenedor.innerHTML = `<iframe src="${WEBAPP_URL}?v=${nombreArchivoHtml}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
+            // INYECTAMOS EL IFRAME
+            contenedor.innerHTML = `<iframe id="moduloIframe" src="${WEBAPP_URL}?v=${nombreArchivoHtml}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
+
+            // MAGIA: ENVIAMOS EL USUARIO AL IFRAME EN CUANTO CARGUE
+            const iframe = document.getElementById('moduloIframe');
+            iframe.onload = function() {
+                if(usuarioActual) {
+                    iframe.contentWindow.postMessage({ usuarioActivo: usuarioActual.nombre }, "*");
+                }
+            };
         }
 
         function volverAlMenu() {
             document.getElementById('view-workspace').classList.add('hidden');
-            document.getElementById('app-container').innerHTML = ''; // Limpiamos el iframe
+            document.getElementById('app-container').innerHTML = '';
             document.getElementById('view-dashboard').classList.remove('hidden');
         }
 
-        // --- EJECUTAR FUNCIONES SIN HTML (Ej. Ocultar BD) ---
         function ejecutarFuncionServidor(nombreFuncion) {
-            alert(`ATENCIÓN: La función '${nombreFuncion}' todavía usa alertas nativas de Excel. Para ejecutarla correctamente, usa el menú lateral desde tu hoja de cálculo por ahora.`);
-            // En el futuro, podemos adaptar estas funciones para la Web App.
+            alert(`Usa el menú lateral de Excel para '${nombreFuncion}' por ahora.`);
         }
     </script>
 </body>

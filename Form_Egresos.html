@@ -2,163 +2,266 @@
 <html>
 <head>
     <base target="_top">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; color: #333; }
-        .container { background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
-        h2 { color: #1a73e8; margin-top: 0; font-weight: 700; border-bottom: 2px solid #e8e8e8; padding-bottom: 10px; margin-bottom: 15px; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; padding: 10px; }
+        .container-box { max-width: 600px; margin: 0 auto; }
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-btn.active { background-color: #dc2626; color: white; border-color: #dc2626; }
+        .tab-btn.inactive { background-color: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+        .tab-btn.inactive:hover { background-color: #e2e8f0; }
         
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { flex: 1; padding: 10px; text-align: center; background: #e8eaed; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s; border: none; }
-        .tab-btn.active { background: #1a73e8; color: white; }
-        
-        .search-box { display: flex; gap: 10px; margin-bottom: 20px; padding: 15px; background: #f1f3f4; border-radius: 8px; }
-        .search-box input { margin-bottom: 0 !important; flex: 1; }
-        .search-box button { width: auto; padding: 10px 15px; background: #34a853; }
-
-        label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 0.95rem; }
-        input[type="text"], input[type="number"], input[type="date"], input[type="month"], input[type="password"], select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: border-color 0.3s, box-shadow 0.3s; }
-        input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2); outline: none; }
-        
-        button { background-color: #1a73e8; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-size: 1rem; font-weight: 600; transition: background-color 0.3s, transform 0.1s; }
-        button:hover { background-color: #1565c0; }
-        button:active { transform: scale(0.99); }
-        button:disabled { background-color: #9aa0a6; cursor: not-allowed; }
-
-        .message { padding: 15px; margin-top: 20px; border-radius: 8px; font-weight: 600; text-align: center; }
-        .success { background-color: #e6ffed; color: #1a8837; border: 1px solid #a6e3b7; }
-        .error { background-color: #ffe6e6; color: #d93025; border: 1px solid #e8a6a6; }
-        .loading { text-align: center; color: #1a73e8; font-weight: 600; margin-top: 15px; }
-        
-        .clave-box { border-left: 4px solid #fbbc04; padding-left: 10px; margin-top: 10px; }
+        /* Ocultar flechas en inputs numéricos */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Gestión de Egresos</h2>
+<div class="container-box p-5 bg-white shadow-xl rounded-xl border-t-8 border-red-600 relative">
     
-    <div class="tabs">
-        <button type="button" class="tab-btn active" onclick="setMode('nuevo')">Registrar Nuevo</button>
-        <button type="button" class="tab-btn" onclick="setMode('editar')">Editar Existente</button>
+    <div class="flex justify-between items-center mb-5 border-b pb-3">
+        <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-file-invoice-dollar text-red-600 mr-2"></i> Gestión de Egresos</h2>
     </div>
 
-    <div id="searchSection" class="search-box" style="display: none;">
-        <input type="text" id="buscarId" placeholder="Folio del Egreso (Ej: EGR-A1B2)">
-        <button type="button" onclick="buscarEgreso()">Buscar</button>
+    <div class="flex gap-2 mb-6">
+        <button type="button" id="tabNuevo" class="tab-btn active flex-1 py-2 rounded-lg font-bold border-2" onclick="setMode('nuevo')">
+            <i class="fas fa-plus-circle mr-1"></i> Registrar Nuevo
+        </button>
+        <button type="button" id="tabEditar" class="tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2" onclick="setMode('editar')">
+            <i class="fas fa-edit mr-1"></i> Editar Existente
+        </button>
     </div>
 
-    <form id="debtForm">
+    <div id="searchSection" class="hidden bg-red-50 p-4 rounded-lg border border-red-200 mb-6 transition">
+        <label class="block text-sm font-bold text-red-900 mb-2">Buscar Folio a Editar:</label>
+        <div class="flex gap-2">
+            <input type="text" id="buscarId" placeholder="Ej: EGR-A1B2" class="w-full p-2 border-2 border-red-200 rounded-lg outline-none focus:border-red-500 bg-white font-bold uppercase tracking-wider">
+            <button type="button" id="btnBuscar" onclick="buscarEgreso()" class="bg-red-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-700 transition shadow">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="messages" class="mb-4 text-center text-sm font-bold"></div>
+
+    <form id="debtForm" onsubmit="abrirModalConfirmacion(event)" class="space-y-4">
         <input type="hidden" id="modoForm" value="nuevo">
         <input type="hidden" id="idEgreso" value="">
 
-        <label for="mesEgreso">Mes al que corresponde el gasto</label>
-        <input type="month" id="mesEgreso" required>
+        <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Registrado / Editado Por:</label>
+            <div id="contenedorCapturistaText">
+                <input type="text" id="capturistaInput" name="capturista" readonly class="w-full bg-transparent text-blue-600 font-bold outline-none" placeholder="Detectando usuario...">
+            </div>
+            <div id="contenedorCapturistaSelect" class="hidden">
+                <select id="capturistaSelect" class="w-full p-2 border-2 border-gray-200 rounded-lg outline-none focus:border-red-500 bg-white text-sm font-bold">
+                    <option value="">Cargando capturistas...</option>
+                </select>
+            </div>
+        </div>
 
-        <label for="concepto">Concepto / Descripción</label>
-        <input type="text" id="concepto" required placeholder="Ej: Pago a contratista por reparación de bomba">
+        <div class="flex gap-4">
+            <div class="w-1/2">
+                <label for="mesEgreso" class="block text-sm font-bold text-gray-700 mb-1">Mes del Gasto</label>
+                <input type="month" id="mesEgreso" required class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-red-500 bg-white font-semibold text-gray-700">
+            </div>
+            <div class="w-1/2">
+                <label for="fechaEmision" class="block text-sm font-bold text-gray-700 mb-1">Fecha Emisión</label>
+                <input type="date" id="fechaEmision" required class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-red-500 bg-white font-semibold text-gray-700">
+            </div>
+        </div>
 
-        <label for="proveedor">Proveedor / Acreedor</label>
-        <input type="text" id="proveedor" required placeholder="Ej: Servicios Eléctricos S.A.">
+        <div>
+            <label for="concepto" class="block text-sm font-bold text-gray-700 mb-1">Concepto / Descripción</label>
+            <input type="text" id="concepto" required placeholder="Ej: Pago a contratista por reparación de plomería" class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-red-500 bg-white font-semibold">
+        </div>
 
-        <label for="monto">Monto Total ($)</label>
-        <input type="number" id="monto" required min="0.01" step="0.01" placeholder="Ej: 1500.00">
-
-        <label for="fechaEmision">Fecha de Emisión del Comprobante</label>
-        <input type="date" id="fechaEmision" required>
-
-        <label for="capturista">Registrado / Editado Por</label>
-        <select id="capturista" required>
-            <option value="" disabled selected>Cargando usuarios...</option>
-        </select>
-        
-        <div class="clave-box" id="claveBox" style="display:none;">
-            <label for="claveControl">Clave de Autorización (Obligatorio para editar)</label>
-            <input type="password" id="claveControl" placeholder="Introduce tu clave/PIN">
+        <div class="flex flex-col sm:flex-row gap-4">
+            <div class="w-full sm:w-2/3">
+                <label for="proveedor" class="block text-sm font-bold text-gray-700 mb-1">Proveedor / Acreedor</label>
+                <input type="text" id="proveedor" required placeholder="Ej: Servicios Generales S.A." class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-red-500 bg-white font-semibold text-gray-800">
+            </div>
+            <div class="w-full sm:w-1/3">
+                <label for="monto" class="block text-sm font-bold text-gray-700 mb-1">Monto Total ($)</label>
+                <input type="number" id="monto" required min="0.01" step="0.01" placeholder="0.00" class="w-full p-2.5 border-2 border-red-300 rounded-lg outline-none focus:border-red-500 bg-red-50 font-bold text-red-600 text-lg text-right">
+            </div>
         </div>
         
-        <button type="submit" id="submitBtn">Guardar Registro</button>
+        <div id="claveBox" class="hidden bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500 mt-2 shadow-inner">
+            <label for="claveControl" class="block text-xs font-bold text-orange-800 mb-2 uppercase tracking-wide"><i class="fas fa-lock mr-1"></i> Clave de Autorización (ADMIN)</label>
+            <input type="password" id="claveControl" placeholder="Introduce PIN Maestro" class="w-full p-2.5 border-2 border-orange-200 rounded-lg outline-none focus:border-orange-500 bg-white text-center tracking-widest font-bold text-lg">
+        </div>
+        
+        <button type="submit" id="submitBtn" class="w-full mt-6 bg-red-600 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-red-700 hover:shadow-xl transition transform hover:-translate-y-0.5 flex justify-center items-center text-lg">
+            <i class="fas fa-save mr-2"></i> REGISTRAR EGRESO
+        </button>
     </form>
-    
-    <div id="loading" class="loading" style="display: none;">Procesando...</div>
-    <div id="message" class="message" style="display: none;"></div>
+</div>
+
+<div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-60 hidden z-50 flex items-center justify-center p-4 transition-opacity">
+    <div id="modalBox" class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform scale-95 transition-transform">
+        
+        <div id="modalConfirmacion" class="p-6 hidden">
+            <div class="text-center mb-4">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900">Confirmar Operación</h3>
+                <p class="text-sm text-gray-500 mt-2">Vas a registrar una salida de dinero en el sistema.</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg mb-5 border border-gray-200 text-sm">
+                <div class="flex justify-between mb-2"><span class="text-gray-500 font-bold">Monto:</span> <span id="confMonto" class="font-bold text-red-600 text-lg"></span></div>
+                <div class="flex justify-between mb-2"><span class="text-gray-500 font-bold">Proveedor:</span> <span id="confProv" class="font-bold text-gray-800 text-right w-2/3 truncate"></span></div>
+                <div class="flex justify-between"><span class="text-gray-500 font-bold">Tipo:</span> <span id="confTipo" class="font-bold text-blue-600"></span></div>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="cerrarModal()" class="flex-1 bg-white border-2 border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl hover:bg-gray-50 transition">Cancelar</button>
+                <button type="button" onclick="ejecutarGuardado()" class="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 shadow-md transition">Sí, registrar</button>
+            </div>
+        </div>
+
+        <div id="modalProcesando" class="p-8 text-center hidden">
+            <i class="fas fa-circle-notch fa-spin fa-3x text-red-600 mb-4"></i>
+            <h3 class="text-lg font-bold text-gray-800">Procesando...</h3>
+            <p class="text-sm text-gray-500 mt-1">Conectando con la base de datos</p>
+        </div>
+
+        <div id="modalExito" class="p-6 text-center hidden">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 text-green-500 mb-4 border-4 border-green-50">
+                <i class="fas fa-check fa-3x"></i>
+            </div>
+            <h3 class="text-2xl font-extrabold text-gray-900 mb-2">¡Aprobado!</h3>
+            <p class="text-sm text-gray-600 mb-4">El egreso ha sido registrado exitosamente en el sistema.</p>
+            
+            <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
+                <p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Folio de Auditoría</p>
+                <p id="folioGenerado" class="text-2xl font-black text-blue-900 tracking-wider"></p>
+                <p class="text-xs text-blue-700 mt-2 font-medium">✏️ Anote este código en su factura o comprobante físico.</p>
+            </div>
+            
+            <button type="button" onclick="cerrarModalExito()" class="w-full bg-green-500 text-white font-bold py-3 rounded-xl hover:bg-green-600 shadow-lg transition">
+                ¡Entendido!
+            </button>
+        </div>
+
+        <div id="modalError" class="p-6 text-center hidden">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Operación Fallida</h3>
+            <p id="txtError" class="text-sm text-gray-600 mb-6 bg-gray-50 p-3 rounded-lg border border-gray-200"></p>
+            <button type="button" onclick="cerrarModal()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl hover:bg-gray-900 transition">
+                Cerrar y Revisar
+            </button>
+        </div>
+
+    </div>
 </div>
 
 <script>
-    const form = document.getElementById('debtForm');
-    const capturistaSelect = document.getElementById('capturista');
-    const messageDiv = document.getElementById('message');
-    const loadingDiv = document.getElementById('loading');
-    const submitBtn = document.getElementById('submitBtn');
-    
-    const today = new Date();
-    const currentMonth = today.toISOString().substring(0, 7); 
-    const currentDate = today.toISOString().substring(0, 10); 
+    let usuarioWebRecibido = false;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        resetCampos();
-        cargarCapturistas();
+    // ESCUCHA EL MENSAJE DE LA WEB APP (PARA EL CAPTURISTA)
+    window.addEventListener('message', function(event) {
+        if(event.data && event.data.usuarioActivo) {
+            document.getElementById('capturistaInput').value = event.data.usuarioActivo;
+            usuarioWebRecibido = true;
+        }
     });
 
-    function showMessage(msg, isSuccess) {
-        messageDiv.textContent = msg;
-        messageDiv.className = isSuccess ? 'message success' : 'message error';
-        messageDiv.style.display = 'block';
-        submitBtn.disabled = false;
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date();
+        const currentMonth = today.toISOString().substring(0, 7); 
+        const currentDate = today.toISOString().substring(0, 10); 
+        
+        document.getElementById('mesEgreso').value = currentMonth;
+        document.getElementById('fechaEmision').value = currentDate;
+
+        // Timeout de seguridad: Plan B para Excel
+        setTimeout(() => {
+            if(!usuarioWebRecibido) {
+                document.getElementById('contenedorCapturistaText').classList.add('hidden');
+                document.getElementById('contenedorCapturistaSelect').classList.remove('hidden');
+                cargarCapturistas();
+            }
+        }, 1500);
+    });
+
+    function showToast(msg, isError) {
+        const messageDiv = document.getElementById('messages');
+        messageDiv.innerHTML = `<div class="p-3 rounded-lg mb-4 shadow-sm ${isError ? 'bg-red-100 text-red-800 border-l-4 border-red-500' : 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'}">${msg}</div>`;
+        setTimeout(() => { messageDiv.innerHTML = ''; }, 5000);
     }
 
     function resetCampos() {
         document.getElementById('concepto').value = '';
         document.getElementById('proveedor').value = '';
         document.getElementById('monto').value = '';
-        document.getElementById('mesEgreso').value = currentMonth;
-        document.getElementById('fechaEmision').value = currentDate;
         document.getElementById('idEgreso').value = '';
         document.getElementById('claveControl').value = '';
+        document.getElementById('buscarId').value = '';
+        document.getElementById('messages').innerHTML = '';
+        
+        const today = new Date();
+        document.getElementById('mesEgreso').value = today.toISOString().substring(0, 7);
+        document.getElementById('fechaEmision').value = today.toISOString().substring(0, 10);
     }
 
     function setMode(modo) {
-        messageDiv.style.display = 'none';
-        const btns = document.querySelectorAll('.tab-btn');
-        btns[0].classList.toggle('active', modo === 'nuevo');
-        btns[1].classList.toggle('active', modo === 'editar');
+        document.getElementById('messages').innerHTML = '';
+        const tabNuevo = document.getElementById('tabNuevo');
+        const tabEditar = document.getElementById('tabEditar');
         
         document.getElementById('modoForm').value = modo;
-        document.getElementById('searchSection').style.display = modo === 'editar' ? 'flex' : 'none';
-        document.getElementById('claveBox').style.display = modo === 'editar' ? 'block' : 'none';
-        document.getElementById('submitBtn').textContent = modo === 'editar' ? 'Actualizar Egreso' : 'Registrar Egreso';
         
-        // Hacer la clave obligatoria solo en modo edición
-        document.getElementById('claveControl').required = modo === 'editar';
-        
-        if(modo === 'nuevo') resetCampos();
+        if (modo === 'nuevo') {
+            tabNuevo.className = "tab-btn active flex-1 py-2 rounded-lg font-bold border-2";
+            tabEditar.className = "tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2";
+            document.getElementById('searchSection').classList.add('hidden');
+            document.getElementById('claveBox').classList.add('hidden');
+            document.getElementById('claveControl').required = false;
+            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save mr-2"></i> REGISTRAR EGRESO';
+            resetCampos();
+        } else {
+            tabNuevo.className = "tab-btn inactive flex-1 py-2 rounded-lg font-bold border-2";
+            tabEditar.className = "tab-btn active flex-1 py-2 rounded-lg font-bold border-2";
+            document.getElementById('searchSection').classList.remove('hidden');
+            document.getElementById('claveBox').classList.remove('hidden');
+            document.getElementById('claveControl').required = true;
+            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync-alt mr-2"></i> ACTUALIZAR EGRESO';
+            resetCampos();
+        }
     }
 
     function cargarCapturistas() {
         google.script.run.withSuccessHandler(function(result) {
+            const select = document.getElementById('capturistaSelect');
             if (result.capturistas) {
                 result.capturistas.forEach(name => {
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    capturistaSelect.appendChild(option);
+                    select.innerHTML += `<option value="${name}">${name}</option>`;
                 });
-                capturistaSelect.selectedIndex = 0; 
+                if(result.capturistas.length > 0) select.value = result.capturistas[0];
             }
         }).getCapturistaList();
     }
 
     function buscarEgreso() {
         const idBusqueda = document.getElementById('buscarId').value.trim();
-        if(!idBusqueda) return alert("Ingresa un folio válido.");
+        if(!idBusqueda) { showToast("⚠️ Ingresa un folio válido para buscar.", true); return; }
         
-        loadingDiv.style.display = 'block';
-        messageDiv.style.display = 'none';
-        submitBtn.disabled = true;
+        const btnBus = document.getElementById('btnBuscar');
+        btnBus.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btnBus.disabled = true;
 
         google.script.run
             .withSuccessHandler(function(res) {
-                loadingDiv.style.display = 'none';
+                btnBus.innerHTML = '<i class="fas fa-search"></i>';
+                btnBus.disabled = false;
                 if(res.success) {
                     document.getElementById('idEgreso').value = idBusqueda;
                     document.getElementById('mesEgreso').value = res.mesEgresoStr;
@@ -166,21 +269,72 @@
                     document.getElementById('proveedor').value = res.proveedor;
                     document.getElementById('monto').value = res.monto;
                     document.getElementById('fechaEmision').value = res.fechaEmisionStr;
-                    document.getElementById('capturista').value = res.capturista;
-                    showMessage("✅ Datos cargados. Puedes modificarlos.", true);
+                    
+                    if(!usuarioWebRecibido) document.getElementById('capturistaSelect').value = res.capturista;
+                    
+                    showToast("✅ Datos cargados correctamente. Puedes modificarlos.", false);
                 } else {
-                    showMessage("❌ " + res.message, false);
+                    showToast(res.message, true);
                 }
+            })
+            .withFailureHandler(function(err) {
+                btnBus.innerHTML = '<i class="fas fa-search"></i>';
+                btnBus.disabled = false;
+                showToast("Error de servidor: " + err.message, true);
             })
             .buscarEgresoPorId(idBusqueda);
     }
 
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+    // ==========================================
+    // LÓGICA DE MODALES INTERNOS
+    // ==========================================
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+
+    function cambiarEstadoModal(estadoId) {
+        ['modalConfirmacion', 'modalProcesando', 'modalExito', 'modalError'].forEach(id => {
+            document.getElementById(id).classList.add('hidden');
+        });
+        document.getElementById(estadoId).classList.remove('hidden');
+    }
+
+    function abrirModalConfirmacion(e) {
+        e.preventDefault(); // Detenemos el envío normal
         
-        messageDiv.style.display = 'none';
-        loadingDiv.style.display = 'block';
-        submitBtn.disabled = true;
+        const monto = parseFloat(document.getElementById('monto').value).toFixed(2);
+        const prov = document.getElementById('proveedor').value;
+        const modo = document.getElementById('modoForm').value;
+
+        document.getElementById('confMonto').innerText = `$${monto}`;
+        document.getElementById('confProv').innerText = prov;
+        document.getElementById('confTipo').innerText = modo === 'nuevo' ? 'Nuevo Registro' : 'Edición';
+
+        cambiarEstadoModal('modalConfirmacion');
+        
+        overlay.classList.remove('hidden');
+        setTimeout(() => { box.classList.remove('scale-95'); box.classList.add('scale-100'); }, 10);
+    }
+
+    function cerrarModal() {
+        box.classList.remove('scale-100');
+        box.classList.add('scale-95');
+        setTimeout(() => { overlay.classList.add('hidden'); }, 200);
+    }
+
+    function cerrarModalExito() {
+        cerrarModal();
+        const modo = document.getElementById('modoForm').value;
+        if(modo === 'nuevo') {
+            resetCampos();
+        } else {
+            document.getElementById('claveControl').value = ''; // Limpiar PIN por seguridad
+        }
+    }
+
+    function ejecutarGuardado() {
+        cambiarEstadoModal('modalProcesando');
+
+        const capturistaDefinitivo = usuarioWebRecibido ? document.getElementById('capturistaInput').value : document.getElementById('capturistaSelect').value;
 
         const debtData = {
             modo: document.getElementById('modoForm').value,
@@ -190,22 +344,34 @@
             proveedor: document.getElementById('proveedor').value.trim(),
             monto: document.getElementById('monto').value,
             fechaEmisionStr: document.getElementById('fechaEmision').value,
-            capturista: document.getElementById('capturista').value,
+            capturista: capturistaDefinitivo,
             claveControl: document.getElementById('claveControl').value.trim()
         };
         
         google.script.run
             .withSuccessHandler(function(result) {
-                loadingDiv.style.display = 'none';
                 if (result.success) {
-                    showMessage(result.message, true);
-                    if(debtData.modo === 'nuevo') resetCampos();
+                    // Extraer el folio del mensaje (Ej: "Egreso registrado. Folio: EGR-XXXXX")
+                    let folioStr = "";
+                    if(debtData.modo === 'nuevo') {
+                        folioStr = result.message.split('Folio: ')[1] || "VER EXCEL";
+                        document.getElementById('folioGenerado').innerText = folioStr;
+                    } else {
+                        document.getElementById('folioGenerado').innerText = debtData.idEgreso;
+                        document.querySelector('#modalExito h3').innerText = "¡Actualizado!";
+                    }
+                    cambiarEstadoModal('modalExito');
                 } else {
-                    showMessage(result.message, false);
+                    document.getElementById('txtError').innerText = result.message;
+                    cambiarEstadoModal('modalError');
                 }
             })
+            .withFailureHandler(function(err) {
+                document.getElementById('txtError').innerText = "Error en el servidor: " + err.message;
+                cambiarEstadoModal('modalError');
+            })
             .processExternalDebtRegistration(debtData); 
-    });
+    }
 </script>
 
 </body>

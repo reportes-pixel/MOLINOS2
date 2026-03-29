@@ -678,3 +678,45 @@ function lanzarBuscadorTicket() {
   const r = ui.prompt('Reimpresión', 'ID Pago (ej. RGP-...):', ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() == ui.Button.OK) showTicketDialog(r.getResponseText().toUpperCase().trim());
 }
+
+function obtenerDatosCorteWebApp(fechaBusqueda, capturistaFiltro) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const data = sheet.getDataRange().getValues();
+  const resultados = [];
+  let totalMonto = 0;
+
+  // Convertir fecha de YYYY-MM-DD a DD/MM/YYYY para comparar con la BD
+  const partes = fechaBusqueda.split('-');
+  const fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+
+  for (let i = 1; i < data.length; i++) {
+    // Evitamos filas vacías
+    if (!data[i][1]) continue; 
+    
+    let fechaCelda = Utilities.formatDate(new Date(data[i][1]), Session.getScriptTimeZone(), "dd/MM/yyyy");
+    let capturistaCelda = data[i][3];
+    
+    if (fechaCelda === fechaFormateada) {
+      // Si el filtro es MIO, solo trae los del usuario activo
+      if (capturistaFiltro && capturistaFiltro !== "TODOS" && capturistaCelda !== capturistaFiltro) continue;
+      
+      resultados.push({
+        folio: data[i][0],
+        unidad: data[i][2],
+        capturista: capturistaCelda,
+        monto: parseFloat(data[i][4]) || 0,
+        concepto: data[i][9] || "Pago registrado"
+      });
+      totalMonto += parseFloat(data[i][4]) || 0;
+    }
+  }
+
+  return {
+    success: true,
+    fecha: fechaFormateada,
+    pagos: resultados,
+    total: totalMonto
+  };
+}
+

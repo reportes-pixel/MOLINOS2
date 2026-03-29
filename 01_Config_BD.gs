@@ -14,7 +14,8 @@ function getUnitList() {
             units.push({
                 id: data[i][0],
                 departamento: data[i][1],
-                propietario: data[i][2]
+                propietario: data[i][2],
+                email: data[i][4] || "" // <--- ¡AQUÍ ESTÁ LA MAGIA! Ahora sí manda el correo
             });
         }
     }

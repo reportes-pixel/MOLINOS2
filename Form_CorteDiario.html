@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; padding: 10px; }
+        .container-box { max-width: 600px; margin: 0 auto; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body>
+
+<div class="container-box p-4 bg-white shadow-xl rounded-xl border-t-8 border-purple-600">
+    
+    <div id="pantallaBusqueda">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4"><i class="fas fa-file-invoice mr-2 text-purple-600"></i>Corte de Caja</h2>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Seleccionar Fecha:</label>
+                <input type="date" id="fechaCorte" class="w-full p-3 border-2 border-gray-200 rounded-lg outline-none focus:border-purple-500 bg-white text-lg font-bold">
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Filtrar por Capturista:</label>
+                <div class="flex gap-2">
+                    <button onclick="setFiltro('TODOS')" id="btnTodos" class="flex-1 py-2 rounded-md font-bold border-2 border-purple-600 bg-purple-600 text-white transition">TODOS</button>
+                    <button onclick="setFiltro('MIO')" id="btnMio" class="flex-1 py-2 rounded-md font-bold border-2 border-gray-200 text-gray-500 hover:bg-gray-100 transition">MI CORTE</button>
+                </div>
+            </div>
+
+            <button onclick="generarCorte()" id="btnGenerar" class="w-full bg-purple-600 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-purple-700 transition flex justify-center items-center text-lg">
+                <i class="fas fa-search-dollar mr-2"></i> CONSULTAR CORTE
+            </button>
+        </div>
+    </div>
+
+    <div id="pantallaResultado" class="hidden">
+        <div class="flex justify-between items-center mb-4 no-print">
+            <button onclick="volver()" class="text-purple-600 font-bold hover:underline"><i class="fas fa-arrow-left mr-1"></i> Volver</button>
+            <button onclick="window.print()" class="bg-gray-800 text-white px-3 py-1 rounded-md text-sm font-bold"><i class="fas fa-print mr-1"></i> Imprimir</button>
+        </div>
+
+        <div class="text-center mb-6">
+            <h3 class="text-lg font-bold text-gray-900 uppercase">Resumen de Ingresos</h3>
+            <p id="resFecha" class="text-purple-600 font-black text-xl"></p>
+            <p id="resCapturista" class="text-xs text-gray-500 font-bold uppercase"></p>
+        </div>
+
+        <div class="space-y-2 mb-6" id="listaPagosCorte">
+            </div>
+
+        <div class="border-t-4 border-double border-gray-800 pt-4 text-center">
+            <p class="text-sm font-bold text-gray-600 uppercase">Total Recaudado</p>
+            <p id="resTotal" class="text-3xl font-black text-green-600"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    let filtroActivo = "TODOS";
+    let usuarioActual = "Sistema";
+
+    window.addEventListener('message', function(event) {
+        if(event.data && event.data.usuarioActivo) usuarioActual = event.data.usuarioActivo;
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('fechaCorte').value = new Date().toISOString().substring(0, 10);
+    });
+
+    function setFiltro(modo) {
+        filtroActivo = modo;
+        document.getElementById('btnTodos').className = modo === 'TODOS' ? 'flex-1 py-2 rounded-md font-bold border-2 border-purple-600 bg-purple-600 text-white' : 'flex-1 py-2 rounded-md font-bold border-2 border-gray-200 text-gray-500';
+        document.getElementById('btnMio').className = modo === 'MIO' ? 'flex-1 py-2 rounded-md font-bold border-2 border-purple-600 bg-purple-600 text-white' : 'flex-1 py-2 rounded-md font-bold border-2 border-gray-200 text-gray-500';
+    }
+
+    function generarCorte() {
+        const fecha = document.getElementById('fechaCorte').value;
+        const btn = document.getElementById('btnGenerar');
+        const capturistaFiltro = filtroActivo === "MIO" ? usuarioActual : "TODOS";
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Calculando...';
+
+        google.script.run.withSuccessHandler(res => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search-dollar mr-2"></i> CONSULTAR CORTE';
+            
+            if(res.pagos.length === 0) return alert("No se encontraron pagos para esta selección.");
+
+            document.getElementById('pantallaBusqueda').classList.add('hidden');
+            document.getElementById('pantallaResultado').classList.remove('hidden');
+            
+            document.getElementById('resFecha').innerText = res.fecha;
+            document.getElementById('resCapturista').innerText = filtroActivo === "MIO" ? `Corte de: ${usuarioActual}` : "Corte General";
+            document.getElementById('resTotal').innerText = `$${res.total.toFixed(2)}`;
+
+            const lista = document.getElementById('listaPagosCorte');
+            lista.innerHTML = "";
+            res.pagos.forEach(p => {
+                lista.innerHTML += `
+                    <div class="flex justify-between items-center p-2 border-b border-dashed border-gray-200 text-sm">
+                        <div class="flex-1">
+                            <span class="font-bold text-gray-800 block">${p.unidad}</span>
+                            <span class="text-[10px] text-gray-500 uppercase">${p.capturista} | ${p.concepto}</span>
+                        </div>
+                        <span class="font-bold text-gray-900">$${p.monto.toFixed(2)}</span>
+                    </div>`;
+            });
+        }).obtenerDatosCorteWebApp(fecha, capturistaFiltro);
+    }
+
+    function volver() {
+        document.getElementById('pantallaResultado').classList.add('hidden');
+        document.getElementById('pantallaBusqueda').classList.remove('hidden');
+    }
+</script>
+</body>
+</html>

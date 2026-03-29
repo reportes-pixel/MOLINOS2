@@ -180,4 +180,25 @@ function accesoGestorCargosMaestro() {
       .setWidth(700)
       .setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Gestor Maestro de Cargos');
+  
 }
+
+
+
+// NUEVO: Apertura del buscador de tickets en Modal (Para Excel)
+function abrirFormReimpresion() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_Reimpresion')
+      .evaluate()
+      .setWidth(650)
+      .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Buscador y Reimpresión de Tickets');
+}
+
+function abrirFormCorteDiario() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_CorteDiario')
+      .evaluate()
+      .setWidth(550)
+      .setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Corte de Caja Diario');
+}
+
