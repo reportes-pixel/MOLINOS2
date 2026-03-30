@@ -5,13 +5,36 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f8fafc; font-family: 'Arial', sans-serif; padding: 10px; }
         .radio-card:checked + div { border-color: #2563eb; background-color: #eff6ff; }
         .radio-card:checked + div i { color: #2563eb; }
+        
+        /* ESTILOS DE TABLA CONTABLE */
+        .tabla-contable { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.75rem; color: #1f2937; }
+        .tabla-contable th, .tabla-contable td { border: 1px solid #9ca3af; padding: 4px 8px; }
+        .tabla-contable th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+        .tabla-contable .header-row td { background-color: #e5e7eb; font-weight: bold; }
+        .titulo-seccion { font-size: 0.85rem; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5rem; color: #111827; border-bottom: 2px solid #111827; padding-bottom: 2px; }
+        
+        .bg-ingresos { background-color: #dcfce7 !important; }
+        .bg-egresos { background-color: #fee2e2 !important; }
+
+        /* MAGIA PARA EL PDF (AJUSTADO PARA NO DEJAR HUECOS) */
+        @media print { 
+            body { background-color: white; padding: 0; font-size: 10pt; }
+            .no-print { display: none !important; }
+            #pantallaResultado { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+            .tabla-contable th, .tabla-contable td { border: 1px solid #000; padding: 3px 6px; }
+            table { page-break-inside: auto; margin-bottom: 15px; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-row-group; }
+        }
     </style>
 </head>
-<body class="p-6">
-    <div class="max-w-md mx-auto bg-white rounded-xl shadow-md border-t-4 border-blue-600 p-6">
+<body class="p-2 md:p-6">
+    
+    <div id="pantallaBusqueda" class="max-w-md mx-auto bg-white rounded-xl shadow-md border-t-4 border-blue-600 p-6 no-print">
         <h2 class="text-xl font-bold text-blue-900 mb-1"><i class="fas fa-chart-line mr-2 text-blue-500"></i>Reporte Financiero</h2>
         <p class="text-sm text-gray-500 mb-5">Selecciona el tipo de reporte que deseas generar.</p>
 
@@ -35,28 +58,127 @@
         <div class="space-y-4 mb-6">
             <div id="cajaInicio">
                 <label id="lblInicio" class="block text-sm font-bold text-blue-900 mb-1">Mes a consultar</label>
-                <input type="month" id="mesInicio" class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50 transition">
+                <input type="month" id="mesInicio" class="w-full p-2 border-2 border-gray-300 rounded outline-none focus:border-blue-500 bg-gray-50 transition text-center">
             </div>
-
             <div id="cajaFin" class="hidden">
                 <label class="block text-sm font-bold text-blue-900 mb-1">Mes de término (Fin)</label>
-                <input type="month" id="mesFin" class="w-full p-2.5 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-gray-50 transition">
+                <input type="month" id="mesFin" class="w-full p-2 border-2 border-gray-300 rounded outline-none focus:border-blue-500 bg-gray-50 transition text-center">
             </div>
         </div>
 
         <div id="msjError" class="hidden text-red-500 text-sm font-bold text-center mb-4 bg-red-50 p-2 rounded"></div>
 
-        <button id="btnGenerar" onclick="enviarDatos()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition shadow-md">
+        <button id="btnGenerar" onclick="enviarDatos()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded hover:bg-blue-700 transition shadow">
             <i class="fas fa-cog mr-2"></i> GENERAR REPORTE
         </button>
         
         <div id="loader" class="hidden text-center mt-3">
             <i class="fas fa-spinner fa-spin text-blue-600 fa-2x"></i>
-            <p class="text-sm text-blue-800 font-bold mt-2">Construyendo reporte...</p>
+            <p class="text-sm text-blue-800 font-bold mt-2">Construyendo documento...</p>
         </div>
     </div>
 
+    <div id="pantallaResultado" class="hidden max-w-4xl mx-auto bg-white p-6 md:p-10 shadow-lg border border-gray-200">
+        
+        <div class="flex justify-between items-center mb-6 border-b pb-4 no-print">
+            <button onclick="location.reload()" class="text-gray-600 font-bold hover:bg-gray-100 px-3 py-1 border border-gray-300 rounded transition"><i class="fas fa-arrow-left mr-2"></i> Nueva Consulta</button>
+            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-gray-900 transition flex items-center">
+                <i class="fas fa-print mr-2"></i> Imprimir / PDF
+            </button>
+        </div>
+
+        <div class="text-center mb-6">
+            <h1 class="text-xl font-black text-gray-900 uppercase">Reporte Financiero Extendido y Detallado</h1>
+            <h2 class="text-sm font-bold text-gray-700 uppercase mt-1">Condominio Molinos Real II</h2>
+            <p class="text-sm font-bold text-gray-600 mt-2">Periodo: <span id="pdfPeriodo" class="text-black"></span></p>
+        </div>
+
+        <div>
+            <h3 class="titulo-seccion">Resumen de Cargos y Saldos Devengados</h3>
+            <table class="tabla-contable w-2/3">
+                <tbody>
+                    <tr><td class="w-2/3">Total Cargos Generados</td><td id="pdfCGenerados" class="text-right font-bold w-1/3"></td></tr>
+                    <tr><td>Total Cargos Pagados</td><td id="pdfCPagados" class="text-right font-bold text-green-700"></td></tr>
+                    <tr class="header-row"><td>TOTAL CARGOS PENDIENTES</td><td id="pdfCPendientes" class="text-right text-red-700"></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="titulo-seccion">Saldo Neto de Efectivo (Flujo de Caja)</h3>
+            <table class="tabla-contable w-2/3">
+                <tbody>
+                    <tr><td class="w-2/3">Total Recibido en Pagos (INGRESOS)</td><td id="pdfIngresos" class="text-right font-bold"></td></tr>
+                    <tr><td>Total Egresos Registrados (GASTOS)</td><td id="pdfEgresos" class="text-right font-bold"></td></tr>
+                    <tr id="filaSaldo" class="header-row"><td>SALDO NETO DE EFECTIVO</td><td id="pdfSaldoNeto" class="text-right text-lg"></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <div>
+                <h3 class="titulo-seccion bg-ingresos p-1">Detalle de Ingresos (Agrupado)</h3>
+                <table class="tabla-contable">
+                    <thead><tr><th>Concepto de Pago</th><th class="text-right">Monto Total</th></tr></thead>
+                    <tbody id="tbAgrupadoIngresos"></tbody>
+                    <tfoot>
+                        <tr class="header-row"><td class="text-right">TOTAL INGRESOS:</td><td id="totAgrIngresos" class="text-right bg-ingresos"></td></tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div>
+                <h3 class="titulo-seccion bg-egresos p-1">Detalle de Egresos (Agrupado)</h3>
+                <table class="tabla-contable">
+                    <thead><tr><th>Categoría</th><th class="text-right">Monto Total</th></tr></thead>
+                    <tbody id="tbAgrupadoEgresos"></tbody>
+                    <tfoot>
+                        <tr class="header-row"><td class="text-right">TOTAL EGRESOS:</td><td id="totAgrEgresos" class="text-right bg-egresos"></td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h3 class="titulo-seccion bg-ingresos p-1">Lista Detallada de Pagos Recibidos (Ingresos del Periodo)</h3>
+            <table class="tabla-contable">
+                <thead><tr>
+                    <th class="w-1/6">Fecha</th>
+                    <th class="w-1/4">Departamento</th>
+                    <th class="w-2/4">Concepto Pagado</th>
+                    <th class="w-1/6 text-right">Monto Recibido</th>
+                </tr></thead>
+                <tbody id="tbListaPagos"></tbody>
+                <tfoot>
+                    <tr class="header-row"><td colspan="3" class="text-right">TOTAL PAGOS DEL PERIODO:</td><td id="totListaPagos" class="text-right bg-ingresos"></td></tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="mb-2">
+            <h3 class="titulo-seccion bg-egresos p-1">Lista Detallada de Egresos (Gastos del Periodo)</h3>
+            <table class="tabla-contable">
+                <thead><tr>
+                    <th class="w-1/6">Fecha</th>
+                    <th class="w-1/4">Categoría</th>
+                    <th class="w-2/4">Proveedor</th>
+                    <th class="w-1/6 text-right">Monto Gastado</th>
+                </tr></thead>
+                <tbody id="tbListaEgresos"></tbody>
+                <tfoot>
+                    <tr class="header-row"><td colspan="3" class="text-right">TOTAL EGRESOS DEL PERIODO:</td><td id="totListaEgresos" class="text-right bg-egresos"></td></tr>
+                </tfoot>
+            </table>
+        </div>
+
+    </div>
+
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            document.getElementById('mesInicio').value = today.toISOString().substring(0, 7);
+            document.getElementById('mesFin').value = today.toISOString().substring(0, 7);
+        });
+
         function toggleVista() {
             const esRango = document.querySelector('input[name="tipoReporte"]:checked').value === 'rango';
             document.getElementById('cajaFin').style.display = esRango ? 'block' : 'none';
@@ -69,9 +191,9 @@
             const mesFin = document.getElementById('mesFin').value;
             const msjError = document.getElementById('msjError');
 
-            if (!mesInicio) return mostrarError("Debes seleccionar al menos el mes de inicio.");
+            if (!mesInicio) return mostrarError("Debes seleccionar el mes de inicio.");
             if (tipo === 'rango' && !mesFin) return mostrarError("Debes seleccionar el mes de término.");
-            if (tipo === 'rango' && mesInicio > mesFin) return mostrarError("El mes de inicio no puede ser mayor al de término.");
+            if (tipo === 'rango' && mesInicio > mesFin) return mostrarError("El inicio no puede ser mayor al término.");
 
             msjError.classList.add('hidden');
             document.getElementById('btnGenerar').classList.add('hidden');
@@ -79,15 +201,75 @@
 
             const mFinFinal = (tipo === 'mes') ? mesInicio : mesFin;
 
-            // Enviar a Google Apps Script
             google.script.run
-                .withSuccessHandler(() => google.script.host.close())
+                .withSuccessHandler(dibujarPDF)
                 .withFailureHandler((err) => {
                     document.getElementById('loader').classList.add('hidden');
                     document.getElementById('btnGenerar').classList.remove('hidden');
                     mostrarError("Error: " + err.message);
                 })
                 .procesarPeticionFinancieroMaster(mesInicio, mFinFinal);
+        }
+
+        function dibujarPDF(res) {
+            try {
+                if(!res) throw new Error("El servidor no devolvió datos.");
+                if(!res.success) throw new Error(res.message);
+
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('pantallaBusqueda').classList.add('hidden');
+                document.getElementById('pantallaResultado').classList.remove('hidden');
+
+                // 1. LLENAR ENCABEZADO Y RESUMEN
+                document.getElementById('pdfPeriodo').innerText = res.periodoTexto || "N/A";
+                const formatCurr = (val) => `$${Number(val || 0).toLocaleString('es-MX', {minimumFractionDigits: 2})}`;
+
+                document.getElementById('pdfCGenerados').innerText = formatCurr(res.cargos.generados);
+                document.getElementById('pdfCPagados').innerText = formatCurr(res.cargos.pagados);
+                document.getElementById('pdfCPendientes').innerText = formatCurr(res.cargos.pendientes);
+                
+                document.getElementById('pdfIngresos').innerText = formatCurr(res.flujo.ingresos);
+                document.getElementById('pdfEgresos').innerText = formatCurr(res.flujo.egresos);
+                document.getElementById('pdfSaldoNeto').innerText = formatCurr(res.flujo.saldoNeto);
+                
+                const filaSaldo = document.getElementById('filaSaldo');
+                if (res.flujo.saldoNeto >= 0) {
+                    filaSaldo.className = "header-row text-green-800";
+                } else {
+                    filaSaldo.className = "header-row text-red-800";
+                }
+
+                // 2. LLENAR TABLAS AGRUPADAS (¡Ahora con sus totales!)
+                const tbAgrIngresos = document.getElementById('tbAgrupadoIngresos');
+                tbAgrIngresos.innerHTML = res.agrupadoIngresos.length > 0 ? 
+                    res.agrupadoIngresos.map(i => `<tr><td>${i.concepto}</td><td class="text-right font-bold">${formatCurr(i.monto)}</td></tr>`).join('') :
+                    `<tr><td colspan="2" class="text-center text-gray-500">Sin registros</td></tr>`;
+                document.getElementById('totAgrIngresos').innerText = formatCurr(res.flujo.ingresos);
+
+                const tbAgrEgresos = document.getElementById('tbAgrupadoEgresos');
+                tbAgrEgresos.innerHTML = res.agrupadoEgresos.length > 0 ? 
+                    res.agrupadoEgresos.map(e => `<tr><td>${e.categoria}</td><td class="text-right font-bold">${formatCurr(e.monto)}</td></tr>`).join('') :
+                    `<tr><td colspan="2" class="text-center text-gray-500">Sin registros</td></tr>`;
+                document.getElementById('totAgrEgresos').innerText = formatCurr(res.flujo.egresos);
+
+                // 3. LLENAR LISTAS DETALLADAS
+                const tbPagos = document.getElementById('tbListaPagos');
+                tbPagos.innerHTML = res.listaPagos.length > 0 ? 
+                    res.listaPagos.map(p => `<tr><td>${p[0]}</td><td class="font-bold">${p[1]}</td><td>${p[2]}</td><td class="text-right">${formatCurr(p[3])}</td></tr>`).join('') :
+                    `<tr><td colspan="4" class="text-center text-gray-500">No hay pagos registrados en este periodo</td></tr>`;
+                document.getElementById('totListaPagos').innerText = formatCurr(res.flujo.ingresos);
+
+                const tbEgresos = document.getElementById('tbListaEgresos');
+                tbEgresos.innerHTML = res.listaEgresos.length > 0 ? 
+                    res.listaEgresos.map(e => `<tr><td>${e[0]}</td><td class="font-bold">${e[1]}</td><td>${e[2]}</td><td class="text-right">${formatCurr(e[3])}</td></tr>`).join('') :
+                    `<tr><td colspan="4" class="text-center text-gray-500">No hay egresos registrados en este periodo</td></tr>`;
+                document.getElementById('totListaEgresos').innerText = formatCurr(res.flujo.egresos);
+
+            } catch (error) {
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('btnGenerar').classList.remove('hidden');
+                mostrarError("Error al procesar datos: " + error.message);
+            }
         }
 
         function mostrarError(texto) {

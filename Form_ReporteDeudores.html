@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'Arial', sans-serif; padding: 10px; }
+        
+        /* ESTILOS DE TABLA CONTABLE PDF */
+        .tabla-contable { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.85rem; color: #1f2937; }
+        .tabla-contable th, .tabla-contable td { border: 1px solid #9ca3af; padding: 6px 8px; }
+        .tabla-contable th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; text-align: left; }
+        .tabla-contable .top-debtor td { background-color: #fee2e2; font-weight: bold; color: #991b1b; } /* Resalta a los peores deudores */
+        
+        .titulo-seccion { font-size: 0.9rem; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5rem; color: #111827; border-bottom: 2px solid #991b1b; padding-bottom: 2px; }
+        
+        /* MAGIA PARA EL PDF */
+        @media print { 
+            body { background-color: white; padding: 0; font-size: 10pt; }
+            .no-print { display: none !important; }
+            #pantallaResultado { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+            .tabla-contable th, .tabla-contable td { border: 1px solid #000; padding: 4px 6px; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+        }
+    </style>
+</head>
+<body class="p-2 md:p-6">
+    
+    <div id="pantallaBusqueda" class="max-w-md mx-auto bg-white rounded-xl shadow-md border-t-4 border-red-700 p-6 no-print">
+        <h2 class="text-xl font-bold text-gray-800 mb-1"><i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>Ranking de Deudores</h2>
+        <p class="text-sm text-gray-500 mb-5">Genera la lista de unidades con morosidad ordenada de mayor a menor deuda.</p>
+
+        <div class="space-y-4 mb-6">
+            <div class="bg-red-50 border border-red-200 p-4 rounded-lg flex items-start gap-3">
+                <input type="checkbox" id="checkExcel" class="mt-1 w-5 h-5 text-red-600 rounded border-gray-300 cursor-pointer">
+                <div>
+                    <label for="checkExcel" class="text-sm font-bold text-red-900 cursor-pointer block">Generar respaldo en Excel</label>
+                    <p class="text-xs text-red-700 mt-1">Si activas esto, se reemplazará la pestaña "REPORTE_DEUDORES_RANKING" en tu archivo base.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="msjError" class="hidden text-red-500 text-sm font-bold text-center mb-4 bg-red-100 p-2 rounded border border-red-200"></div>
+
+        <button id="btnGenerar" onclick="enviarDatos()" class="w-full bg-red-700 text-white font-bold py-3 rounded-lg hover:bg-red-800 transition shadow">
+            <i class="fas fa-list-ol mr-2"></i> GENERAR RANKING
+        </button>
+        
+        <div id="loader" class="hidden text-center mt-4">
+            <i class="fas fa-spinner fa-spin text-red-600 fa-2x"></i>
+            <p class="text-sm text-red-800 font-bold mt-2" id="txtCargando">Calculando saldos y ordenando deudores...</p>
+        </div>
+    </div>
+
+    <div id="pantallaResultado" class="hidden max-w-3xl mx-auto bg-white p-6 md:p-10 shadow-lg border border-gray-200">
+        
+        <div class="flex justify-between items-center mb-6 border-b pb-4 no-print">
+            <button onclick="volver()" class="text-gray-600 font-bold hover:bg-gray-100 px-3 py-1 border border-gray-300 rounded transition">
+                <i class="fas fa-arrow-left mr-2"></i> Volver
+            </button>
+            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-gray-900 transition flex items-center">
+                <i class="fas fa-file-pdf mr-2"></i> Guardar PDF
+            </button>
+        </div>
+
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-black text-gray-900 uppercase tracking-tight">Reporte de Morosidad (Ranking)</h1>
+            <h2 class="text-sm font-bold text-gray-600 uppercase mt-1">Condominio Molinos Real II</h2>
+            <p class="text-xs font-bold text-gray-500 mt-2">Fecha de emisión: <span id="pdfFecha" class="text-black"></span></p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="border-2 border-red-200 p-4 rounded text-center bg-red-50">
+                <p class="text-[11px] font-bold uppercase mb-1 text-red-800">Unidades en Mora</p>
+                <p id="pdfTotalUnidades" class="text-3xl font-black text-red-700"></p>
+            </div>
+            <div class="border-2 border-red-500 p-4 rounded text-center bg-white shadow-sm">
+                <p class="text-[11px] font-bold uppercase mb-1 text-gray-500">Total Cartera Vencida</p>
+                <p id="pdfCarteraVencida" class="text-3xl font-black text-red-600 tracking-tighter"></p>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="titulo-seccion">Listado de Deudores</h3>
+            <table class="tabla-contable">
+                <thead><tr>
+                    <th class="w-1/6 text-center">Rank</th>
+                    <th class="w-2/3">Unidad / Departamento</th>
+                    <th class="w-1/4 text-right">Saldo Pendiente</th>
+                </tr></thead>
+                <tbody id="tbRanking"></tbody>
+            </table>
+        </div>
+        
+        <div class="text-center mt-8 text-xs text-gray-400 font-bold uppercase pt-4 border-t border-gray-200">
+            * Este reporte incluye únicamente deudas por concepto de Mensualidades y Multas.
+        </div>
+
+    </div>
+
+    <script>
+        function enviarDatos() {
+            const crearExcel = document.getElementById('checkExcel').checked;
+            
+            document.getElementById('msjError').classList.add('hidden');
+            document.getElementById('btnGenerar').classList.add('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('txtCargando').innerText = crearExcel ? "Generando PDF y actualizando Excel..." : "Calculando saldos y construyendo PDF...";
+
+            google.script.run
+                .withSuccessHandler(dibujarPDF)
+                .withFailureHandler((err) => {
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('btnGenerar').classList.remove('hidden');
+                    mostrarError("Error: " + err.message);
+                })
+                .generarReporteDeudoresWebApp(crearExcel);
+        }
+
+        function dibujarPDF(res) {
+            try {
+                if(!res) throw new Error("Error de conexión con el servidor.");
+                if(!res.success) throw new Error(res.message);
+
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('pantallaBusqueda').classList.add('hidden');
+                document.getElementById('pantallaResultado').classList.remove('hidden');
+
+                const formatCurr = (val) => `$${Number(val || 0).toLocaleString('es-MX', {minimumFractionDigits: 2})}`;
+                
+                // Fecha de hoy
+                const hoy = new Date();
+                document.getElementById('pdfFecha').innerText = hoy.toLocaleDateString('es-MX') + " " + hoy.toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'});
+
+                // Llenar Resumen
+                document.getElementById('pdfTotalUnidades').innerText = res.totalDeudores;
+                document.getElementById('pdfCarteraVencida').innerText = formatCurr(res.carteraVencida);
+
+                // Llenar Tabla
+                const tb = document.getElementById('tbRanking');
+                tb.innerHTML = res.ranking.map((r, index) => {
+                    // Si están en el Top 3, los ponemos en rojito para resaltar
+                    let rowClass = index < 3 ? 'top-debtor border-b' : 'border-b hover:bg-gray-50';
+                    return `<tr class="${rowClass}">
+                        <td class="text-center font-bold text-gray-500">${r[0]}</td>
+                        <td class="font-bold text-gray-800">${r[1]}</td>
+                        <td class="text-right font-bold">${formatCurr(r[2])}</td>
+                    </tr>`;
+                }).join('');
+
+            } catch (error) {
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('btnGenerar').classList.remove('hidden');
+                mostrarError(error.message);
+            }
+        }
+
+        function mostrarError(texto) {
+            const msjError = document.getElementById('msjError');
+            msjError.innerText = texto;
+            msjError.classList.remove('hidden');
+        }
+
+        function volver() {
+            document.getElementById('pantallaResultado').classList.add('hidden');
+            document.getElementById('pantallaBusqueda').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

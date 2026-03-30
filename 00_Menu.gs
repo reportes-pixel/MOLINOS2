@@ -4,6 +4,14 @@
 
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 0. ¡NUEVO! Forzar a que el archivo siempre despierte en la hoja "MENU"
+  // NOTA: Asegúrate de que el nombre entre comillas sea EXACTAMENTE igual al de tu pestaña
+  const hojaInicio = ss.getSheetByName('MENU'); 
+  if (hojaInicio) {
+    hojaInicio.activate();
+  }
 
   // 1. Crea el menú súper limpio como "Plan B"
   ui.createMenu('🌟 SISTEMA MOLINOS')
@@ -17,7 +25,6 @@ function onOpen() {
     // Si por temas de permisos Google tarda en reaccionar, no marca error.
   }
 }
-
 
 function abrirSidebarPrincipal() {
   const html = HtmlService.createTemplateFromFile('Sidebar')
@@ -201,4 +208,49 @@ function abrirFormCorteDiario() {
       .setHeight(650);
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Corte de Caja Diario');
 }
+
+function abrirFormCortePeriodo() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_CortePeriodo')
+      .evaluate()
+      .setWidth(600)
+      .setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Corte por Período');
+}
+
+function abrirFormReporteFinanciero() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_ReporteFinanciero')
+      .evaluate()
+      .setWidth(700)
+      .setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Reporte Financiero Master');
+}
+
+
+function abrirFormEstadoCuenta() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_EstadoCuenta')
+      .evaluate()
+      .setWidth(700)
+      .setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Estado de Cuenta');
+}
+
+
+function abrirFormReporteDeudores() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_ReporteDeudores')
+      .evaluate()
+      .setWidth(600)
+      .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Ranking de Deudores');
+}
+
+
+function abrirFormReporteVencidas() {
+  const htmlOutput = HtmlService.createTemplateFromFile('Form_ReporteVencidas')
+      .evaluate()
+      .setWidth(600)
+      .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Mensualidades Vencidas');
+}
+
+
 
