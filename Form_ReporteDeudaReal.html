@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f1f5f9; font-family: 'Arial', sans-serif; padding: 10px; }
+        .tabla-auditoria { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-bottom: 10px; }
+        .tabla-auditoria th, .tabla-auditoria td { border: 1px solid #cbd5e1; padding: 4px 8px; }
+        .tabla-auditoria th { background-color: #1e293b; color: white; text-transform: uppercase; }
+        .bg-unidad { background-color: #f8fafc; border-left: 4px solid #1e293b; }
+        
+        @media print { 
+            .no-print { display: none !important; }
+            #pantallaResultado { box-shadow: none; border: none; max-width: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body class="p-2 md:p-4">
+    
+    <div id="pantallaBusqueda" class="max-w-md mx-auto bg-white rounded-xl shadow-lg border-t-4 border-slate-800 p-6 no-print">
+        <h2 class="text-xl font-bold text-slate-800 mb-2"><i class="fas fa-balance-scale mr-2"></i>Deuda Real Recuperable</h2>
+        <p class="text-xs text-gray-500 mb-6 uppercase tracking-wider font-bold">Cruce de Cargos vs Saldos a Favor</p>
+
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6 flex items-start gap-3">
+            <input type="checkbox" id="checkSync" class="mt-1 w-5 h-5 text-blue-600 rounded border-gray-300 cursor-pointer">
+            <div>
+                <label for="checkSync" class="text-sm font-bold text-blue-900 cursor-pointer block">Sincronizar con Archivo del Comité</label>
+                <p class="text-[10px] text-blue-700 mt-1 uppercase">Actualiza automáticamente el reporte en el Google Sheets externo de vigilancia.</p>
+            </div>
+        </div>
+
+        <button id="btnGenerar" onclick="enviarDatos()" class="w-full bg-slate-800 text-white font-bold py-3 rounded hover:bg-slate-900 shadow-md transition">
+            GENERAR ANALÍTICO DE DEUDA
+        </button>
+        
+        <div id="loader" class="hidden text-center mt-4">
+            <i class="fas fa-cog fa-spin text-slate-600 fa-2x"></i>
+            <p class="text-xs text-slate-600 font-bold mt-2 uppercase">Procesando cruce de cuentas...</p>
+        </div>
+    </div>
+
+    <div id="pantallaResultado" class="hidden max-w-4xl mx-auto bg-white p-6 md:p-8 shadow-2xl border border-gray-300">
+        
+        <div class="flex justify-between items-center mb-6 no-print border-b pb-4">
+            <button onclick="volver()" class="text-xs font-bold uppercase text-gray-500 hover:text-black"><i class="fas fa-arrow-left mr-1"></i> Volver</button>
+            <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded text-xs font-bold shadow hover:bg-black"><i class="fas fa-print mr-2"></i> IMPRIMIR REPORTE</button>
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 class="text-xl font-black uppercase text-slate-900">Reporte Analítico de Deuda Real</h1>
+            <h2 class="text-sm font-bold text-slate-500 uppercase">Condominio Molinos Real II</h2>
+            <div id="msgSync" class="text-[10px] font-bold text-blue-600 mt-2 uppercase"></div>
+        </div>
+
+        <div class="bg-slate-900 text-white p-4 rounded mb-8 text-center shadow-inner">
+            <p class="text-[10px] font-bold uppercase tracking-widest opacity-70">Gran Total Real Recuperable</p>
+            <p id="pdfGranTotal" class="text-4xl font-black"></p>
+        </div>
+
+        <div class="mb-8">
+            <h3 class="text-xs font-black uppercase border-b-2 border-slate-800 pb-1 mb-3">Ranking de Morosidad Real</h3>
+            <table class="tabla-auditoria">
+                <thead><tr><th>#</th><th>Unidad</th><th class="text-right">Deuda Real (Neta)</th></tr></thead>
+                <tbody id="tbRanking"></tbody>
+            </table>
+        </div>
+
+        <div>
+            <h3 class="text-xs font-black uppercase border-b-2 border-slate-800 pb-1 mb-3">Desglose Analítico por Departamento</h3>
+            <div id="contDesglose" class="space-y-4"></div>
+        </div>
+
+    </div>
+
+    <script>
+        function enviarDatos() {
+            const sync = document.getElementById('checkSync').checked;
+            document.getElementById('btnGenerar').classList.add('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+
+            google.script.run
+                .withSuccessHandler(dibujarPDF)
+                .withFailureHandler(err => alert(err.message))
+                .generarReporteDeudaRealWebApp(sync);
+        }
+
+        function dibujarPDF(res) {
+            if(!res.success) {
+                alert(res.message);
+                volver();
+                return;
+            }
+
+            document.getElementById('pantallaBusqueda').classList.add('hidden');
+            document.getElementById('pantallaResultado').classList.remove('hidden');
+
+            const format = (v) => `$${Number(v).toLocaleString('es-MX', {minimumFractionDigits:2})}`;
+
+            document.getElementById('pdfGranTotal').innerText = format(res.granTotal);
+            document.getElementById('msgSync').innerText = res.msgExterno;
+
+            // Ranking
+            document.getElementById('tbRanking').innerHTML = res.ranking.map((r, i) => `
+                <tr><td>${i+1}</td><td class="font-bold">${r.id}</td><td class="text-right font-black">${format(r.total)}</td></tr>
+            `).join('');
+
+            // Desglose
+            document.getElementById('contDesglose').innerHTML = res.desglose.map(d => `
+                <div class="bg-unidad p-3 border rounded shadow-sm">
+                    <div class="flex justify-between font-black text-sm mb-2 uppercase border-b pb-1">
+                        <span>Depto ${d.id}</span>
+                        <span class="text-blue-900">Total a Pagar: ${format(d.totalReal)}</span>
+                    </div>
+                    ${d.detalles.map(det => `
+                        <div class="flex justify-between text-[11px] text-gray-600">
+                            <span>${det.concepto}</span>
+                            <span>${format(det.monto)}</span>
+                        </div>
+                    `).join('')}
+                    ${d.anticipo > 0 ? `
+                        <div class="flex justify-between text-[11px] text-green-700 font-bold mt-1 italic">
+                            <span>(-) Saldo a favor disponible</span>
+                            <span>-${format(d.anticipo)}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function volver() {
+            document.getElementById('pantallaResultado').classList.add('hidden');
+            document.getElementById('pantallaBusqueda').classList.remove('hidden');
+            document.getElementById('btnGenerar').classList.remove('hidden');
+            document.getElementById('loader').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

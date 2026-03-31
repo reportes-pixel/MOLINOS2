@@ -2,14 +2,17 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molinos Real II - Portal Administrativo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .menu-card { transition: all 0.2s; cursor: pointer; border-left: 4px solid transparent; }
+        .menu-card { transition: all 0.2s; cursor: pointer; border-left: 4px solid transparent; height: 100%; }
         .menu-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-left-color: #2563eb; }
+        .icon-box { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; flex-shrink: 0; }
     </style>
 </head>
 <body class="min-h-screen">
@@ -19,157 +22,155 @@
             <div class="bg-blue-600 text-white rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-4 shadow-xl border-4 border-blue-100">
                 <i class="fas fa-building fa-4x"></i>
             </div>
-            <h2 class="text-4xl font-extrabold text-blue-900 tracking-tight">Molinos Real II</h2>
-            <p class="text-md text-blue-600 font-semibold mt-1 uppercase tracking-widest">Portal Web Administrativo</p>
+            <h2 class="text-4xl font-extrabold text-blue-900">Molinos Real II</h2>
+            <p class="text-md text-blue-600 font-semibold uppercase tracking-widest">Acceso Administrativo</p>
         </div>
 
         <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border-t-4 border-blue-600">
-            <label class="block text-sm font-bold text-blue-900 mb-2">Usuario Asignado</label>
+            <label class="block text-sm font-bold text-blue-900 mb-2">Usuario</label>
             <select id="loginUser" class="w-full p-3 border-2 border-gray-200 rounded-xl mb-5 outline-none focus:border-blue-500 bg-gray-50 text-gray-700 font-medium">
                 <option value="">Cargando usuarios...</option>
             </select>
-
-            <label class="block text-sm font-bold text-blue-900 mb-2">Contraseña / PIN</label>
-            <input type="password" id="loginPass" placeholder="••••••••" class="w-full p-3 border-2 border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 bg-gray-50 text-center tracking-widest text-xl font-bold">
-
-            <button onclick="intentarLogin()" id="btnLogin" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg">
-                INICIAR SESIÓN
-            </button>
+            <label class="block text-sm font-bold text-blue-900 mb-2">PIN de Acceso</label>
+            <input type="password" id="loginPass" placeholder="••••" class="w-full p-3 border-2 border-gray-200 rounded-xl mb-6 outline-none focus:border-blue-500 bg-gray-50 text-center tracking-widest text-xl font-bold">
+            <button onclick="intentarLogin()" id="btnLogin" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg">INGRESAR AL SISTEMA</button>
             <div id="loginLoader" class="hidden text-center mt-4 text-blue-600 font-bold"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
             <div id="loginError" class="text-red-500 text-center text-sm font-bold mt-4 hidden bg-red-50 p-3 rounded-lg border border-red-200"></div>
         </div>
     </div>
 
     <div id="view-dashboard" class="hidden min-h-screen flex flex-col fade-in">
-        <header class="bg-white shadow-sm p-4 flex justify-between items-center border-b-4 border-blue-600">
+        <header class="bg-white shadow-sm p-4 flex justify-between items-center border-b-4 border-blue-600 sticky top-0 z-40">
             <div class="flex items-center">
                 <i class="fas fa-building text-2xl text-blue-600 mr-3"></i>
-                <h1 class="text-xl font-extrabold text-gray-800">Molinos Real II</h1>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="text-right hidden sm:block">
-                    <p id="userNameDisplay" class="text-sm font-bold text-gray-800 leading-tight">Usuario</p>
-                    <span id="userRoleDisplay" class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded font-bold">ROL</span>
+                <div>
+                    <h1 class="text-lg font-black text-gray-800 leading-none">Molinos Real II</h1>
+                    <p id="userNameDisplay" class="text-xs font-bold text-blue-600"></p>
                 </div>
-                <button onclick="cerrarSesion()" class="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-lg transition" title="Cerrar Sesión">
-                    <i class="fas fa-sign-out-alt"></i> Salir
-                </button>
             </div>
+            <button onclick="cerrarSesion()" class="bg-red-50 text-red-500 hover:bg-red-100 p-2 px-3 rounded-lg transition text-xs font-bold uppercase"><i class="fas fa-power-off"></i></button>
         </header>
 
-        <main class="flex-grow p-6 max-w-6xl mx-auto w-full">
-            <div class="mb-8 block-categoria" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                <h3 class="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4"><i class="fas fa-wallet text-emerald-500 mr-2"></i> Cobranza Diaria</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div onclick="abrirModulo('Form_Pagos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                        <div class="bg-emerald-100 p-3 rounded-lg mr-4"><i class="fas fa-hand-holding-usd text-emerald-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Registrar Pago</span>
+        <main class="flex-grow p-4 max-w-6xl mx-auto w-full space-y-8">
+            
+            <section data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
+                <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-wallet mr-2"></i> Cobranza Diaria</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div onclick="abrirModulo('Form_Pagos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-emerald-100 text-emerald-600"><i class="fas fa-hand-holding-usd fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Registrar Pago</p><p class="text-[10px] text-gray-400 uppercase">Ingresos ordinarios</p></div>
                     </div>
-                    <div onclick="abrirModulo('Form_Adelantos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                        <div class="bg-blue-100 p-3 rounded-lg mr-4"><i class="fas fa-fast-forward text-blue-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Adelantar Mensualidad</span>
+                    <div onclick="abrirModulo('Form_Adelantos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-blue-100 text-blue-600"><i class="fas fa-fast-forward fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Adelantar Mensualidades</p><p class="text-[10px] text-gray-400 uppercase">Pagos anticipados</p></div>
                     </div>
-
-
-                    
-                 <div onclick="abrirModulo('Form_CorteDiario')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-    <div class="bg-purple-100 p-3 rounded-lg mr-4"><i class="fas fa-calendar-day text-purple-600 text-xl"></i></div>
-    <span class="font-bold text-gray-700 text-sm">Corte Diario</span>
-</div>
-
-
-<div onclick="abrirModulo('Form_CortePeriodo')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-    <div class="bg-indigo-100 p-3 rounded-lg mr-4"><i class="fas fa-calendar-alt text-indigo-600 text-xl"></i></div>
-    <span class="font-bold text-gray-700 text-sm">Corte por Período</span>
-</div>
-
-
-
-                    <div onclick="abrirModulo('Form_Reimpresion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                        <div class="bg-amber-100 p-3 rounded-lg mr-4"><i class="fas fa-print text-amber-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Reimprimir Ticket</span>
+                    <div onclick="abrirModulo('Form_CorteDiario')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-purple-100 text-purple-600"><i class="fas fa-calendar-day fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Corte Diario</p><p class="text-[10px] text-gray-400 uppercase">Cierre de caja</p></div>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('reporteEstadoDeCuenta_SEPARADO')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE,CAPTURISTA">
-                        <div class="bg-indigo-100 p-3 rounded-lg mr-4"><i class="fas fa-user-clock text-indigo-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Estado de Cuenta</span>
+                    <div onclick="abrirModulo('Form_Reimpresion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-amber-100 text-amber-600"><i class="fas fa-print fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Reimprimir Ticket</p><p class="text-[10px] text-gray-400 uppercase">Historial de recibos</p></div>
+                    </div>
+                    <div onclick="abrirModulo('Form_EstadoCuenta')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-indigo-100 text-indigo-600"><i class="fas fa-file-invoice-dollar fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Estado de Cuenta</p><p class="text-[10px] text-gray-400 uppercase">Consulta por unidad</p></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="mb-8 block-categoria" data-roles="ADMIN,CONTADOR">
-                <h3 class="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4"><i class="fas fa-file-invoice-dollar text-teal-500 mr-2"></i> Generación de Cargos</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div onclick="abrirModulo('Form_GestorCargos')" class="bg-teal-50 p-4 rounded-xl shadow-sm border border-teal-200 menu-card flex items-center" data-roles="ADMIN,CONTADOR">
-                        <div class="bg-teal-100 p-3 rounded-lg mr-4"><i class="fas fa-cogs text-teal-600 text-xl"></i></div>
-                        <span class="font-bold text-teal-800 text-sm">Gestor Maestro de Cargos</span>
+            <section data-roles="ADMIN,CONTADOR,PRESIDENTE">
+                <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-chart-pie mr-2"></i> Reportes y Cortes</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div onclick="abrirModulo('Form_CortePeriodo')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-indigo-50 text-indigo-500"><i class="fas fa-calendar-alt fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Corte por Período</p><p class="text-[10px] text-gray-400 uppercase">Rango de fechas</p></div>
                     </div>
-                    <div onclick="abrirModulo('Form_Multas')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                        <div class="bg-orange-100 p-3 rounded-lg mr-4"><i class="fas fa-gavel text-orange-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Registrar Multa</span>
+                    <div onclick="abrirModulo('Form_ReporteFinanciero')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-teal-100 text-teal-600"><i class="fas fa-chart-line fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Reporte Financiero (Master)</p><p class="text-[10px] text-gray-400 uppercase">Balance general</p></div>
                     </div>
-                    <div onclick="abrirModulo('CargoExtraordinario')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR">
-                        <div class="bg-gray-200 p-3 rounded-lg mr-4"><i class="fas fa-plus-square text-gray-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Cargo Extraordinario</span>
+                    <div onclick="abrirModulo('Form_ReporteDeudores')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-rose-100 text-rose-600"><i class="fas fa-exclamation-triangle fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Ranking Morosos</p><p class="text-[10px] text-gray-400 uppercase">Lista de deudores</p></div>
                     </div>
-                    <div onclick="abrirModulo('Form_Estacionamiento')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR">
-                        <div class="bg-slate-200 p-3 rounded-lg mr-4"><i class="fas fa-car-side text-slate-700 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Renta Estacionamiento</span>
+                    <div onclick="abrirModulo('Form_ReporteVencidas')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-amber-50 text-amber-600"><i class="fas fa-calendar-times fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Mensualidades Vencidas</p><p class="text-[10px] text-gray-400 uppercase">Alertas de cobro</p></div>
+                    </div>
+                    <div onclick="abrirModulo('Form_ReporteDeudaReal')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-slate-200 text-slate-700"><i class="fas fa-balance-scale fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Deuda Real</p><p class="text-[10px] text-gray-400 uppercase">Saldos cruzados</p></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="mb-8 block-categoria" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                <h3 class="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4"><i class="fas fa-chart-pie text-purple-500 mr-2"></i> Reportes y Cortes</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div onclick="abrirModulo('Form_ReporteFinanciero')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                        <div class="bg-purple-100 p-3 rounded-lg mr-4"><i class="fas fa-chart-line text-purple-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Reporte Financiero</span>
+            <section data-roles="ADMIN,CONTADOR">
+                <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-file-invoice-dollar mr-2"></i> Generación de Cargos</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div onclick="abrirModulo('Form_GestorCargos')" class="bg-teal-50 p-4 rounded-xl shadow-sm border border-teal-200 menu-card flex items-center">
+                        <div class="icon-box bg-teal-100 text-teal-600"><i class="fas fa-cogs fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-teal-800 text-sm">Gestor Maestro</p><p class="text-[10px] text-teal-600 uppercase">Cargos masivos</p></div>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('reporteTotalDeudores')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                        <div class="bg-rose-100 p-3 rounded-lg mr-4"><i class="fas fa-sort-amount-down text-rose-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Ranking Deudores</span>
+                    <div onclick="abrirModulo('Form_Multas')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-orange-100 text-orange-600"><i class="fas fa-gavel fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Registrar Multa</p><p class="text-[10px] text-gray-400 uppercase">Sanciones</p></div>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('reporteMensualidadesVencidas_CORREGIDO')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                        <div class="bg-orange-100 p-3 rounded-lg mr-4"><i class="fas fa-exclamation-circle text-orange-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Mensualidades Vencidas</span>
+                    <div onclick="abrirModulo('CargoExtraordinario')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-gray-100 text-gray-600"><i class="fas fa-plus-square fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Cargo Extraordinario</p><p class="text-[10px] text-gray-400 uppercase">Cuotas especiales</p></div>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('reporteDeudaRealCorregido')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR,PRESIDENTE">
-                        <div class="bg-red-100 p-3 rounded-lg mr-4"><i class="fas fa-balance-scale-right text-red-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Reporte Deuda Real</span>
+                    <div onclick="abrirModulo('Form_Estacionamiento')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-slate-100 text-slate-700"><i class="fas fa-car-side fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Renta Estacionamiento</p><p class="text-[10px] text-gray-400 uppercase">Control de cajones</p></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="mb-8 block-categoria" data-roles="ADMIN,CONTADOR">
-                <h3 class="text-lg font-bold text-gray-700 border-b-2 border-gray-200 pb-2 mb-4"><i class="fas fa-user-shield text-gray-600 mr-2"></i> Administración</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div onclick="abrirModulo('Form_Cancelacion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR">
-                        <div class="bg-red-100 p-3 rounded-lg mr-4"><i class="fas fa-ban text-red-600 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Cancelar Pago</span>
+            <section data-roles="ADMIN,CONTADOR">
+                <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-user-shield mr-2"></i> Administración</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div onclick="abrirModulo('Form_Cancelacion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-red-100 text-red-600"><i class="fas fa-ban fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Cancelar Pago</p><p class="text-[10px] text-gray-400 uppercase">Anulación de folios</p></div>
                     </div>
-                    <div onclick="abrirModulo('Form_Egresos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN,CONTADOR">
-                        <div class="bg-red-50 p-3 rounded-lg mr-4"><i class="fas fa-money-check-alt text-red-500 text-xl"></i></div>
-                        <span class="font-bold text-gray-700 text-sm">Registrar Egresos</span>
+                    <div onclick="abrirModulo('Form_Egresos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-red-50 text-red-500"><i class="fas fa-money-check-alt fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Registrar Egresos</p><p class="text-[10px] text-gray-400 uppercase">Control de gastos</p></div>
                     </div>
-                    <div onclick="ejecutarFuncionServidor('toggleSheets')" class="bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-900 menu-card flex items-center" data-roles="ADMIN">
-                        <div class="bg-slate-600 p-3 rounded-lg mr-4"><i class="fas fa-eye text-white text-xl"></i></div>
-                        <span class="font-bold text-white text-sm">Ocultar/Mostrar BD</span>
+                    <div onclick="google.script.run.toggleSheets()" class="bg-slate-800 p-4 rounded-xl shadow-sm menu-card flex items-center" data-roles="ADMIN">
+                        <div class="icon-box bg-slate-700 text-white"><i class="fas fa-eye fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-white text-sm">Ocultar/Mostrar BD</p><p class="text-[10px] text-slate-400 uppercase">Seguridad Sheets</p></div>
+                    </div>
+                    <div onclick="abrirModulo('Form_Usuarios')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center" data-roles="ADMIN">
+                        <div class="icon-box bg-blue-50 text-blue-600"><i class="fas fa-users-cog fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Gestión de Usuarios</p><p class="text-[10px] text-gray-400 uppercase">Roles y accesos</p></div>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <section data-roles="ADMIN">
+                <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-star mr-2 text-yellow-500"></i> Extras</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div onclick="google.script.run.reporteSaldoDetalladoPorConcepto_Fechas()" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                        <div class="icon-box bg-sky-100 text-sky-500"><i class="fas fa-list-ul fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Saldo por Concepto</p><p class="text-[10px] text-gray-400 uppercase">Analítico de deudas</p></div>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 
     <div id="view-workspace" class="hidden min-h-screen bg-gray-100 flex flex-col fade-in">
         <div class="bg-white shadow-md p-3 flex justify-between items-center sticky top-0 z-50">
-            <button onclick="volverAlMenu()" class="text-blue-600 font-bold hover:bg-blue-50 px-4 py-2 rounded-lg transition">
-                <i class="fas fa-arrow-left mr-2"></i> Volver al Menú
+            <button onclick="volverAlMenu()" class="text-blue-600 font-bold hover:bg-blue-50 px-4 py-2 rounded-lg transition flex items-center">
+                <i class="fas fa-arrow-left mr-2"></i> Menú Principal
             </button>
-            <span id="workspace-title" class="font-bold text-gray-500 text-sm uppercase">Cargando...</span>
+            <span id="workspace-title" class="font-bold text-gray-400 text-[10px] uppercase tracking-widest">Cargando...</span>
+            <div class="w-10"></div>
         </div>
-        
-        <div id="app-container" class="flex-grow p-2 md:p-4 w-full max-w-5xl mx-auto h-[85vh]">
-            </div>
+        <div id="app-container" class="flex-grow p-2 md:p-4 w-full max-w-6xl mx-auto h-[calc(100vh-65px)]"></div>
     </div>
 
     <script>
@@ -183,18 +184,16 @@
 
         function llenarSelectUsuarios(nombres) {
             const select = document.getElementById('loginUser');
-            select.innerHTML = '<option value="">-- Selecciona tu usuario --</option>';
+            select.innerHTML = '<option value="">-- Selecciona Usuario --</option>';
             nombres.forEach(nombre => { select.innerHTML += `<option value="${nombre}">${nombre}</option>`; });
         }
 
         function intentarLogin() {
             const user = document.getElementById('loginUser').value;
             const pass = document.getElementById('loginPass').value;
-            const errorDiv = document.getElementById('loginError');
-            if(!user || !pass) { errorDiv.innerText = "Selecciona usuario y PIN."; errorDiv.classList.remove('hidden'); return; }
+            if(!user || !pass) return;
             document.getElementById('btnLogin').classList.add('hidden');
             document.getElementById('loginLoader').classList.remove('hidden');
-            errorDiv.classList.add('hidden');
             google.script.run.withSuccessHandler(procesarLogin).validarLoginLogin(user, pass);
         }
 
@@ -203,51 +202,32 @@
             document.getElementById('btnLogin').classList.remove('hidden');
             if(res.success) {
                 usuarioActual = res;
-                document.getElementById('userNameDisplay').innerText = res.nombre;
-                document.getElementById('userRoleDisplay').innerText = res.rol;
+                document.getElementById('userNameDisplay').innerText = res.nombre + " (" + res.rol + ")";
                 aplicarPermisosVisuales(res.rol);
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
             } else {
-                const errorDiv = document.getElementById('loginError');
-                errorDiv.innerText = res.message;
-                errorDiv.classList.remove('hidden');
-                document.getElementById('loginPass').value = ''; 
+                alert(res.message);
             }
         }
 
-        function cerrarSesion() {
-            usuarioActual = null;
-            document.getElementById('loginPass').value = '';
-            document.getElementById('view-dashboard').classList.add('hidden');
-            document.getElementById('view-workspace').classList.add('hidden');
-            document.getElementById('view-login').classList.remove('hidden');
-        }
-
         function aplicarPermisosVisuales(rolUsuario) {
-            const elementosRestringidos = document.querySelectorAll('[data-roles]');
-            elementosRestringidos.forEach(el => {
+            document.querySelectorAll('[data-roles]').forEach(el => {
                 const rolesPermitidos = el.getAttribute('data-roles').split(',');
                 el.style.display = rolesPermitidos.includes(rolUsuario) ? '' : 'none';
             });
         }
 
-        function abrirModulo(nombreArchivoHtml) {
-            if(!WEBAPP_URL) { alert("Cargando conexión..."); return; }
+        function abrirModulo(nombreHtml) {
+            if(!WEBAPP_URL) return alert("Conexión lenta, espera un segundo...");
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-workspace').classList.remove('hidden');
-            document.getElementById('workspace-title').innerText = nombreArchivoHtml.replace('Form_', '').replace('_', ' ');
+            document.getElementById('workspace-title').innerText = nombreHtml.replace('Form_', '').replace('_', ' ');
+            document.getElementById('app-container').innerHTML = `<iframe id="moduloIframe" src="${WEBAPP_URL}?v=${nombreHtml}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
             
-            const contenedor = document.getElementById('app-container');
-            // INYECTAMOS EL IFRAME
-            contenedor.innerHTML = `<iframe id="moduloIframe" src="${WEBAPP_URL}?v=${nombreArchivoHtml}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
-
-            // MAGIA: ENVIAMOS EL USUARIO AL IFRAME EN CUANTO CARGUE
             const iframe = document.getElementById('moduloIframe');
             iframe.onload = function() {
-                if(usuarioActual) {
-                    iframe.contentWindow.postMessage({ usuarioActivo: usuarioActual.nombre }, "*");
-                }
+                if(usuarioActual) iframe.contentWindow.postMessage({ usuarioActivo: usuarioActual.nombre }, "*");
             };
         }
 
@@ -257,9 +237,7 @@
             document.getElementById('view-dashboard').classList.remove('hidden');
         }
 
-        function ejecutarFuncionServidor(nombreFuncion) {
-            alert(`Usa el menú lateral de Excel para '${nombreFuncion}' por ahora.`);
-        }
+        function cerrarSesion() { location.reload(); }
     </script>
 </body>
 </html>

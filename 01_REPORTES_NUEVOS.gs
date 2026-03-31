@@ -783,4 +783,150 @@ function generarReporteVencidasWebApp(fechaConsultaStr, crearExcel) {
 
 
 
+/**
+ * REPORTE: Deuda Real (Integrado para Web App y Sincronización Externa)
+ * Mantiene tu lógica original intacta.
+ */
+function generarReporteDeudaRealWebApp(sincronizarExterno) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ID_ARCHIVO_EXTERNO = "1yKAExPx4FbqIEj10t-ZZZFgp_ZIsodt3a5xPxCzsx8Y"; 
+
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !saldosAFavorSheet) {
+    return { success: false, message: "Faltan hojas necesarias (CARGOS, PAGOS o SALDOS_A_FAVOR)." };
+  }
+
+  // 1. Cargar Saldos a Favor
+  const anticipos = {};
+  const anticiposData = saldosAFavorSheet.getDataRange().getValues().slice(1);
+  anticiposData.forEach(row => {
+    const id = String(row[0]); 
+    const monto = Number(row[1]) || 0; 
+    if (monto > 0) anticipos[id] = monto;
+  });
+
+  // 2. Lógica Fecha Actual
+  const hoy = new Date();
+  const mesActual = hoy.getMonth();
+  const anioActual = hoy.getFullYear();
+
+  // 3. Procesar Cargos (Tu lógica original de exclusión del mes actual)
+  const cargosData = cargosSheet.getDataRange().getValues().slice(1);
+  const deudasPorUnidad = {};
+
+  cargosData.forEach(row => {
+    const id = String(row[1]);
+    const concepto = String(row[2]);
+    const fechaCorte = new Date(row[3]);
+    const monto = Number(row[4]) || 0;
+    const estado = String(row[5]);
+
+    let esMesActual = false;
+    if (!isNaN(fechaCorte.getTime())) {
+      esMesActual = (fechaCorte.getMonth() === mesActual && fechaCorte.getFullYear() === anioActual);
+    }
+
+    if (estado !== "Pagado" && !esMesActual) {
+      if (!deudasPorUnidad[id]) deudasPorUnidad[id] = [];
+      deudasPorUnidad[id].push({concepto: concepto, monto: monto});
+    }
+  });
+
+  // 4. Construir Reporte (Tu matriz original)
+  const filasReporte = [];
+  const rankingReal = [];
+  const desgloseParaPDF = []; // Solo para la pantalla
+  let granTotalCondominio = 0;
+  const unidades = Object.keys(deudasPorUnidad).sort();
+
+  unidades.forEach(id => {
+    let sumaCargos = 0;
+    filasReporte.push([`Departamento ${id}`, ""]);
+    
+    const detallesUnidad = [];
+    deudasPorUnidad[id].forEach(item => {
+      filasReporte.push([item.concepto, item.monto]);
+      sumaCargos += item.monto;
+      detallesUnidad.push({concepto: item.concepto, monto: item.monto});
+    });
+
+    const saldoAFavor = anticipos[id] || 0;
+    const totalReal = Math.max(0, sumaCargos - saldoAFavor);
+
+    if (saldoAFavor > 0) {
+      filasReporte.push(["Subtotal Cargos Pendientes", sumaCargos]);
+      filasReporte.push(["(-) SALDO A FAVOR DISPONIBLE", -saldoAFavor]);
+    }
+
+    filasReporte.push([`TOTAL REAL A PAGAR ${id}`, totalReal]);
+    filasReporte.push(["", ""]);
+
+    if (totalReal > 0) {
+      granTotalCondominio += totalReal;
+      rankingReal.push({id: id, total: totalReal});
+    }
+
+    // Guardamos para el PDF
+    desgloseParaPDF.push({
+      id: id,
+      subtotal: sumaCargos,
+      anticipo: saldoAFavor,
+      totalReal: totalReal,
+      detalles: detallesUnidad
+    });
+  });
+
+  filasReporte.push(["---------------------------------------", ""]);
+  filasReporte.push(["GRAN TOTAL RECUPERABLE", granTotalCondominio]);
+  filasReporte.push(["---------------------------------------", ""]);
+
+  rankingReal.sort((a, b) => b.total - a.total);
+  filasReporte.push(["", ""]);
+  filasReporte.push(["RANKING DE DEUDORES (MAYOR A MENOR)", ""]);
+  rankingReal.forEach(item => {
+    filasReporte.push([`Depto ${item.id}`, item.total]);
+  });
+
+  // 5. Función de Escritura (Tu lógica original)
+  const escribirEnHoja = (targetSS, nombre) => {
+    let sheet = targetSS.getSheetByName(nombre) || targetSS.insertSheet(nombre);
+    sheet.clear();
+    sheet.getRange(1, 1, filasReporte.length, 2).setValues(filasReporte);
+    sheet.setColumnWidth(1, 350);
+    sheet.getRange(1, 2, filasReporte.length, 1).setNumberFormat("$#,##0.00");
+    
+    for (let i = 0; i < filasReporte.length; i++) {
+      let t = String(filasReporte[i][0]);
+      if (t.startsWith("Departamento")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#D9EAD3");
+      if (t.startsWith("TOTAL REAL")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#FFF2CC");
+      if (t.includes("(-) SALDO")) sheet.getRange(i+1, 1, 1, 2).setFontColor("green").setFontStyle("italic");
+    }
+  };
+
+  // Ejecución
+  escribirEnHoja(ss, "REPORTE_DEUDA_REAL");
+
+  let msgExterno = "Sincronización no solicitada.";
+  if (sincronizarExterno) {
+    try {
+      const ssExterno = SpreadsheetApp.openById(ID_ARCHIVO_EXTERNO);
+      escribirEnHoja(ssExterno, "REPORTE_DEUDA_REAL");
+      msgExterno = "Sincronización con Comité Exitosa.";
+    } catch (e) {
+      msgExterno = "Error en archivo externo: " + e.message;
+    }
+  }
+
+  return {
+    success: true,
+    granTotal: granTotalCondominio,
+    ranking: rankingReal,
+    desglose: desgloseParaPDF,
+    msgExterno: msgExterno
+  };
+}
+
 

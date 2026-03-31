@@ -254,3 +254,10 @@ function abrirFormReporteVencidas() {
 
 
 
+function abrirFormReporteDeudaReal() {
+  const html = HtmlService.createTemplateFromFile('Form_ReporteDeudaReal')
+      .evaluate().setWidth(750).setHeight(650);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Deuda Real');
+}
+
+
