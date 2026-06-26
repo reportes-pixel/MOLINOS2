@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <style>
+    #loadingOverlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; color: white; backdrop-filter: blur(4px);
+    }
+    
+    /* 2. ESTILO PARA QUE SELECT2 COMBINE CON TAILWIND */
+    .select2-container .select2-selection--single {
+      height: 48px !important;
+      border: 2px solid #e2e8f0 !important;
+      border-radius: 0.75rem !important;
+      display: flex;
+      align-items: center;
+      background-color: #f8fafc !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+      height: 46px !important;
+    }
+    .select2-dropdown {
+      border: 2px solid #3b82f6 !important;
+      border-radius: 0.75rem !important;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .input-edit { transition: all 0.2s; }
+    .input-edit:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); outline: none; }
+    .readonly-input { background-color: transparent; border-color: transparent; cursor: not-allowed; color: #64748b; }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans p-4 md:p-8" onload="init()">
+
+  <div id="loadingOverlay">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 mb-4"></div>
+    <p id="loadingMsg" class="font-black uppercase tracking-widest text-xs">Cargando base de datos...</p>
+  </div>
+
+  <div class="max-w-5xl mx-auto">
+    <div class="bg-slate-900 text-white p-6 rounded-t-3xl flex justify-between items-center shadow-lg">
+      <div>
+        <h1 class="text-xl font-black uppercase tracking-tight"><i class="fas fa-handshake mr-2 text-blue-400"></i> Gestor de Convenios y Cargos</h1>
+        <p class="text-slate-400 text-[10px] font-bold uppercase">Edición manual y corrección de deuda</p>
+      </div>
+      <button onclick="google.script.host.close()" class="bg-slate-700 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-bold text-xs transition flex items-center shadow-lg">
+        <i class="fas fa-times mr-2"></i> CERRAR
+      </button>
+    </div>
+
+    <div class="bg-white p-6 border-b shadow-sm flex gap-4 items-end">
+      <div class="flex-1">
+        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">Seleccionar Departamento</label>
+        <select id="selUnidad" class="w-full font-bold">
+          <option value="">Cargando unidades...</option>
+        </select>
+      </div>
+      <button onclick="cargarCargos()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-md h-[48px]">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+
+    <div class="bg-white rounded-b-3xl shadow-xl p-6 min-h-[400px]">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-100 text-slate-500 uppercase font-black text-[10px]">
+            <tr>
+              <th class="p-4 rounded-tl-xl">Fecha</th>
+              <th class="p-4 w-1/2">Concepto</th>
+              <th class="p-4 w-32">Monto ($)</th>
+              <th class="p-4 text-center">Estado</th>
+              <th class="p-4 text-center rounded-tr-xl">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="listaCargos" class="divide-y divide-slate-100">
+            <tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold uppercase text-xs">Busca una unidad para editar sus cargos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showLoading(msg) {
+      document.getElementById('loadingMsg').innerText = msg;
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    // 3. INICIALIZACIÓN DE SELECT2
+    function init() {
+      // Primero inicializamos el select2 vacío
+      $('#selUnidad').select2({ placeholder: "Buscando unidades..." });
+
+      google.script.run.withSuccessHandler(unidades => {
+        const select = $('#selUnidad');
+        select.empty();
+        select.append(new Option("", "")); // Opción vacía para el placeholder
+        unidades.forEach(u => select.append(new Option(u, u)));
+        
+        // Reinicializamos con los datos
+        select.select2({ 
+          placeholder: "Escribe el nombre o número de unidad...",
+          allowClear: true 
+        });
+        
+        hideLoading();
+      }).getUnidadesParaEditor();
+    }
+
+    function cargarCargos() {
+      const unidad = $('#selUnidad').val();
+      if(!unidad) return;
+
+      showLoading("Buscando cargos de " + unidad + "...");
+      google.script.run.withSuccessHandler(renderTabla).getCargosUnidad(unidad);
+    }
+
+    function renderTabla(cargos) {
+      const tbody = document.getElementById('listaCargos');
+      if(cargos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 font-bold uppercase text-xs">No hay cargos registrados.</td></tr>`;
+        hideLoading();
+        return;
+      }
+
+      tbody.innerHTML = cargos.map(c => {
+        const esPagado = c.estado === 'PAGADO';
+        const badgeColor = esPagado ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200';
+        const inputStyle = esPagado ? 'readonly-input font-bold' : 'input-edit bg-white border-2 border-slate-200 font-bold';
+        
+        return `
+        <tr class="hover:bg-slate-50 transition ${esPagado ? 'opacity-70' : ''}">
+          <td class="p-4 text-xs font-bold text-slate-500">${c.fecha}</td>
+          <td class="p-4"><input type="text" id="concepto_${c.idCargo}" value="${c.concepto}" ${esPagado ? 'readonly' : ''} class="w-full p-2 rounded-lg text-sm ${inputStyle}"></td>
+          <td class="p-4"><input type="number" id="monto_${c.idCargo}" value="${c.monto}" ${esPagado ? 'readonly' : ''} class="w-full p-2 rounded-lg text-sm ${inputStyle}"></td>
+          <td class="p-4 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-black uppercase border ${badgeColor}">${c.estado}</span></td>
+          <td class="p-4 text-center">
+            ${esPagado ? `<i class="fas fa-lock text-slate-300"></i>` : 
+              `<div class="flex justify-center gap-2">
+                 <button onclick="guardarFila('${c.idCargo}')" class="bg-blue-100 text-blue-600 p-2 rounded-lg hover:bg-blue-600 hover:text-white transition"><i class="fas fa-save"></i></button>
+                 <button onclick="borrarFila('${c.idCargo}')" class="bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash-alt"></i></button>
+               </div>`
+            }
+          </td>
+        </tr>`;
+      }).join('');
+      hideLoading();
+    }
+
+    function guardarFila(idCargo) {
+      const nConcepto = document.getElementById(`concepto_${idCargo}`).value;
+      const nMonto = document.getElementById(`monto_${idCargo}`).value;
+      if(confirm("¿Guardar cambios?")) {
+        showLoading("Guardando...");
+        google.script.run.withSuccessHandler(() => { alert("Éxito"); cargarCargos(); }).guardarEdicionCargo(idCargo, nConcepto, nMonto);
+      }
+    }
+
+    function borrarFila(idCargo) {
+      if(confirm("¿Eliminar cargo permanentemente?")) {
+        showLoading("Eliminando...");
+        google.script.run.withSuccessHandler(() => { cargarCargos(); }).eliminarCargoManual(idCargo);
+      }
+    }
+  </script>
+</body>
+</html>

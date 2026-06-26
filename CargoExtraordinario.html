@@ -1,109 +1,165 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base target="_top">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <style>
-        body { font-family: 'Arial', sans-serif; padding: 10px; }
-        label { display: block; margin-top: 10px; font-weight: bold; color: #333; }
-        input[type="text"], input[type="number"], select {
-            width: 95%;
-            padding: 8px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; 
         }
-        button {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 15px;
-            margin-top: 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
+        
+        /* 📱 Ajustes base de Select2 para CELULAR */
+        .select2-container .select2-selection--single {
+            height: 44px !important; 
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.5rem !important;
+            display: flex;
+            align-items: center;
+            font-size: 1rem;
         }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #resultado { margin-top: 15px; padding: 10px; border-radius: 4px; font-weight: bold; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 42px !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 44px !important;
+            color: #374151 !important; 
+            padding-left: 0.75rem !important;
+        }
+
+        /* 💻 Ajustes automáticos de Select2 cuando detecta una PC */
+        @media (min-width: 768px) {
+            .select2-container .select2-selection--single {
+                height: 52px !important; /* Más grande en computadora */
+                font-size: 1.125rem;
+            }
+            .select2-container--default .select2-selection--single .select2-selection__rendered {
+                line-height: 52px !important;
+            }
+            .select2-container--default .select2-selection--single .select2-selection__arrow {
+                height: 50px !important;
+            }
+        }
+
+        .select2-dropdown {
+            border-radius: 0.375rem !important;
+            border: 1px solid #d1d5db !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        }
     </style>
 </head>
-<body>
-    <h3>Registro de Cargo Extraordinario 💰</h3>
-    
-    <form id="cargoForm">
-        <label for="idUnidad">Seleccionar Unidad:</label>
-        <select id="idUnidad" name="idUnidad" required></select>
+<body class="p-4 md:p-10 bg-gray-50 min-h-screen flex justify-center items-start pt-6 md:pt-16">
 
-        <label for="concepto">Concepto del Cargo:</label>
-        <input type="text" id="concepto" name="concepto" placeholder="Ej: Deuda CONVIVIR 2024" required>
+    <div class="w-full max-w-md md:max-w-2xl bg-white shadow-2xl rounded-xl p-6 md:p-10 border-t-8 border-indigo-600 h-fit transition-all duration-300">
+        
+        <h2 class="text-2xl md:text-3xl font-bold text-gray-800 mb-6 border-b pb-4 flex items-center">
+            <span>Cargo Extraordinario 💰</span>
+        </h2>
+        
+        <div id="resultado" class="mb-4"></div>
 
-        <label for="monto">Monto (Ej: 1000.00):</label>
-        <input type="number" id="monto" name="monto" min="0.01" step="0.01" required>
+        <form id="cargoForm" class="space-y-5 md:space-y-6">
+            
+            <div>
+                <label for="idUnidad" class="block text-sm md:text-base font-bold text-gray-700 mb-2">Seleccionar Unidad:</label>
+                <select id="idUnidad" name="idUnidad" required class="w-full">
+                    <option value="">Cargando unidades...</option>
+                </select>
+            </div>
 
-        <button type="submit" id="btnGuardar">Guardar Cargo</button>
-    </form>
+            <div>
+                <label for="concepto" class="block text-sm md:text-base font-bold text-gray-700 mb-2">Concepto del Cargo:</label>
+                <input type="text" id="concepto" name="concepto" placeholder="Ej: Deuda CONVIVIR 2024" required 
+                       class="block w-full shadow-sm sm:text-sm md:text-lg border-gray-300 border rounded-lg p-3 md:p-4 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition">
+            </div>
 
-    <div id="resultado"></div>
+            <div>
+                <label for="monto" class="block text-sm md:text-base font-bold text-gray-700 mb-2">Monto ($):</label>
+                <input type="number" id="monto" name="monto" min="0.01" step="0.01" placeholder="Ej: 1000.00" required 
+                       class="block w-full shadow-sm sm:text-sm md:text-xl border-gray-300 border rounded-lg p-3 md:p-4 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition font-bold text-gray-800">
+            </div>
+
+            <button type="submit" id="btnGuardar" class="w-full flex justify-center mt-2 py-3 md:py-4 px-4 border border-transparent rounded-lg shadow-md md:text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                Guardar Cargo
+            </button>
+        </form>
+    </div>
 
     <script>
-        // Carga la lista de unidades al abrir el formulario
-        document.addEventListener('DOMContentLoaded', () => {
-            // Llama a la nueva función puente que usa tu getUnitList()
+        $(document).ready(function() {
             google.script.run.withSuccessHandler(llenarUnidades).getIdsUnidadesParaForm();
         });
 
         function llenarUnidades(ids) {
-            const select = document.getElementById('idUnidad');
+            const $select = $('#idUnidad');
+            $select.empty().append('<option value="">Seleccione Unidad...</option>');
+            
             if (!ids || ids.length === 0) {
-                const option = document.createElement('option');
-                option.text = "No hay unidades registradas";
-                option.value = "";
-                select.appendChild(option);
-                document.getElementById('btnGuardar').disabled = true;
+                $('#resultado').html('<div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative font-bold mb-4">No hay unidades registradas.</div>');
+                $('#btnGuardar').prop('disabled', true);
             } else {
                 ids.forEach(id => {
-                    const option = document.createElement('option');
-                    option.text = id;
-                    option.value = id;
-                    select.appendChild(option);
+                    $select.append(`<option value="${id}">${id}</option>`);
                 });
             }
+
+            $select.select2({
+                width: '100%',
+                placeholder: "Buscar unidad...",
+                language: { noResults: function() { return "No se encontró la unidad"; } }
+            });
         }
 
-        // Maneja el envío del formulario
-        document.getElementById('cargoForm').addEventListener('submit', function(e) {
+        $('#cargoForm').on('submit', function(e) {
             e.preventDefault();
-            const form = e.target;
+            
+            const idUnidad = $('#idUnidad').val();
+            if(!idUnidad) {
+                $('#resultado').html('<div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 md:text-lg rounded relative font-bold mb-4">Por favor, seleccione una unidad.</div>');
+                return;
+            }
+
             const data = {
-                idUnidad: form.idUnidad.value,
-                concepto: form.concepto.value,
-                monto: form.monto.value
+                idUnidad: idUnidad,
+                concepto: $('#concepto').val(),
+                monto: $('#monto').val()
             };
             
-            document.getElementById('btnGuardar').disabled = true;
-            document.getElementById('resultado').innerHTML = 'Guardando...';
+            $('#btnGuardar').prop('disabled', true).text('Guardando...');
+            $('#resultado').html('<div class="bg-blue-100 text-blue-700 px-4 py-3 rounded relative md:text-lg font-bold mb-4">Procesando cargo en la base de datos...</div>');
 
             google.script.run
                 .withSuccessHandler(manejarRespuesta)
+                .withFailureHandler(function(error) {
+                    $('#resultado').html(`<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative md:text-lg font-bold mb-4">❌ Error de conexión: ${error}</div>`);
+                    $('#btnGuardar').prop('disabled', false).text('Guardar Cargo');
+                })
                 .guardarCargoExtraordinario(data);
         });
 
         function manejarRespuesta(response) {
-            const resultadoDiv = document.getElementById('resultado');
-            document.getElementById('btnGuardar').disabled = false;
+            const $resultadoDiv = $('#resultado');
+            const $btnGuardar = $('#btnGuardar');
+            
+            $btnGuardar.prop('disabled', false).text('Guardar Cargo');
             
             if (response.success) {
-                resultadoDiv.style.backgroundColor = '#d4edda';
-                resultadoDiv.style.color = '#155724';
-                resultadoDiv.innerHTML = response.message;
-                // Limpiar los campos después del éxito
-                document.getElementById('concepto').value = '';
-                document.getElementById('monto').value = '';
+                $resultadoDiv.html(`<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 md:text-lg rounded relative font-bold mb-4">✅ ${response.message}</div>`);
+                
+                $('#concepto').val('');
+                $('#monto').val('');
+                $('#idUnidad').val(null).trigger('change'); 
             } else {
-                resultadoDiv.style.backgroundColor = '#f8d7da';
-                resultadoDiv.style.color = '#721c24';
-                resultadoDiv.innerHTML = `Error: ${response.message}`;
+                $resultadoDiv.html(`<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 md:text-lg rounded relative font-bold mb-4">❌ Error: ${response.message}</div>`);
             }
         }
     </script>

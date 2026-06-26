@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .tab-active-blue { border-bottom: 4px solid #2563eb; color: #2563eb; background: #eff6ff; }
+    .tab-active-green { border-bottom: 4px solid #16a34a; color: #16a34a; background: #f0fdf4; }
+    .tab-active-orange { border-bottom: 4px solid #ea580c; color: #ea580c; background: #fff7ed; }
+    
+    #loadingOverlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; color: white; backdrop-filter: blur(4px);
+    }
+
+    .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 22px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #16a34a; }
+    input:checked + .slider:before { transform: translateX(22px); }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans p-4" onload="init()">
+
+  <div id="loadingOverlay">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 mb-4"></div>
+    <p id="loadingMsg" class="font-black uppercase tracking-widest text-xs">Sincronizando...</p>
+  </div>
+
+  <div id="main" class="max-w-6xl mx-auto">
+    
+    <div class="bg-slate-900 text-white p-6 rounded-t-3xl flex justify-between items-center shadow-lg">
+      <div>
+        <h1 class="text-xl font-black uppercase tracking-tight">Panel de Control Maestro</h1>
+        <p class="text-slate-400 text-[10px] font-bold uppercase">Configuración Central de Cobros y Unidades</p>
+      </div>
+      <button onclick="google.script.host.close()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold text-xs transition flex items-center shadow-lg">
+        <i class="fas fa-sign-out-alt mr-2"></i> REGRESAR AL MENÚ
+      </button>
+    </div>
+
+    <div class="flex bg-white shadow-sm border-b overflow-hidden">
+      <button onclick="tab('m')" id="tm" class="flex-1 p-5 font-black uppercase text-xs tab-active-blue"><i class="fas fa-coins mr-2"></i> Config. Montos</button>
+      <button onclick="tab('e')" id="te" class="flex-1 p-5 font-black uppercase text-xs text-slate-400"><i class="fas fa-star mr-2"></i> Montos Especiales</button>
+      <button onclick="tab('u')" id="tu" class="flex-1 p-5 font-black uppercase text-xs text-slate-400"><i class="fas fa-users-cog mr-2"></i> Departamentos</button>
+    </div>
+
+    <div id="sec-m" class="bg-white p-8 shadow-xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <div id="sec-e" class="hidden bg-white p-8 shadow-xl border-t-8 border-green-500">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-black text-slate-800 uppercase">Gestión de Cuotas Especiales</h3>
+        <button onclick="agregarFilaExcepcion()" class="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-green-700">
+          <i class="fas fa-plus mr-1"></i> AÑADIR UNIDAD AL FINAL
+        </button>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 font-black text-[10px] uppercase">
+          <tr><th class="p-4 text-left">Unidad</th><th class="p-4 text-left">Monto ($)</th><th class="p-4 text-center">¿Pierde Beneficio?</th><th class="p-4 text-center">Acción</th></tr>
+        </thead>
+        <tbody id="listaEx" class="divide-y divide-slate-100"></tbody>
+      </table>
+      <button onclick="saveFinanzas()" class="w-full mt-10 bg-green-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-green-700 transition">
+        GUARDAR CAMBIOS EN MONTOS
+      </button>
+    </div>
+
+    <div id="sec-u" class="hidden bg-white p-8 rounded-b-3xl shadow-xl border-t-8 border-orange-500">
+      <h3 class="text-lg font-black text-slate-800 mb-6 uppercase">Editar Datos de Unidad</h3>
+      <div class="bg-orange-50 p-6 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="col-span-full">
+          <label class="text-[10px] font-black text-orange-600 uppercase">Seleccionar Departamento</label>
+          <select id="selU" onchange="loadU()" class="w-full p-4 rounded-xl border-2 border-orange-200 font-bold bg-white"></select>
+        </div>
+        <div><label class="text-[10px] font-black text-slate-400 uppercase">Propietario</label><input id="ip" class="w-full p-3 border-2 border-slate-100 rounded-xl"></div>
+        <div><label class="text-[10px] font-black text-slate-400 uppercase">Rentero</label><input id="ir" class="w-full p-3 border-2 border-slate-100 rounded-xl"></div>
+        <div class="col-span-full"><label class="text-[10px] font-black text-slate-400 uppercase">Correo</label><input id="im" class="w-full p-3 border-2 border-slate-100 rounded-xl"></div>
+      </div>
+      <button onclick="saveU()" class="w-full mt-8 bg-slate-800 text-white py-5 rounded-2xl font-black uppercase hover:bg-black transition">ACTUALIZAR DIRECTORIO</button>
+    </div>
+
+  </div>
+
+  <script>
+    let _DATA;
+
+    function showLoading(msg) {
+      document.getElementById('loadingMsg').innerText = msg;
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    function init() {
+      showLoading("Obteniendo configuración...");
+      google.script.run.withSuccessHandler(d => {
+        _DATA = d;
+        renderGlobales(d.globales);
+        renderExcepciones(d.excepciones);
+        let s = document.getElementById('selU');
+        s.innerHTML = '<option value="">-- SELECCIONAR --</option>' + d.catalogo.map(u => `<option value="${u.id}">${u.id} - ${u.depto}</option>`).join('');
+        hideLoading();
+      }).obtenerDatosMaestros();
+    }
+
+    function renderGlobales(g) {
+      const keys = [
+        {k:"MENSUALIDAD_BASE", t:"Cuota Base", i:"fa-money-bill", c:"blue"},
+        {k:"MENSUALIDAD_PRONTO_PAGO", t:"Pronto Pago", i:"fa-hand-holding-usd", c:"green"},
+        {k:"TASA_PRONTO_PAGO", t:"Descuento %", i:"fa-percent", c:"emerald"},
+        {k:"TASA_RECARGO", t:"Recargo %", i:"fa-chart-line", c:"red"},
+        {k:"DIA_LIMITE_PP", t:"Límite PP", i:"fa-calendar-check", c:"indigo"},
+        {k:"DIA_LIMITE_NORMAL", t:"Límite Normal", i:"fa-calendar-day", c:"amber"}
+      ];
+      document.getElementById('sec-m').innerHTML = keys.map(x => `
+        <div class="bg-white p-6 rounded-3xl shadow-md border-b-4 border-${x.c}-500 border border-slate-100">
+          <p class="text-[10px] font-black text-slate-400 uppercase mb-2"><i class="fas ${x.i} mr-1 text-${x.c}-500"></i> ${x.t}</p>
+          <input id="gb_${x.k}" type="text" value="${g[x.k] || 0}" class="text-2xl font-black w-full outline-none bg-slate-50 p-2 rounded-lg">
+        </div>`).join('');
+    }
+
+    function renderExcepciones(lista) {
+      const tbody = document.getElementById('listaEx');
+      tbody.innerHTML = "";
+      lista.forEach(e => tbody.appendChild(crearFilaHTML(e.unidad, e.cuota, e.pierde === 'SI')));
+    }
+
+    function crearFilaHTML(unidad, cuota, pierde) {
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-50";
+      tr.innerHTML = `
+        <td class="p-4"><input type="text" value="${unidad}" class="font-black text-slate-700 bg-transparent outline-none w-full uppercase"></td>
+        <td class="p-4"><input type="number" value="${cuota}" class="w-32 bg-slate-100 p-2 rounded-lg font-bold border-2 border-transparent focus:border-green-500 outline-none"></td>
+        <td class="p-4 text-center"><label class="switch"><input type="checkbox" ${pierde ? 'checked' : ''}><span class="slider"></span></label></td>
+        <td class="p-4 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600"><i class="fas fa-trash-alt"></i></button></td>
+      `;
+      return tr;
+    }
+
+    function agregarFilaExcepcion() {
+      const tbody = document.getElementById('listaEx');
+      const tr = crearFilaHTML("", 380, false);
+      tr.classList.add("bg-green-50");
+      tbody.appendChild(tr);
+      tr.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function saveFinanzas() {
+      showLoading("Sincronizando cobros...");
+      const payload = {
+        globales: {
+          MENSUALIDAD_BASE: document.getElementById('gb_MENSUALIDAD_BASE').value,
+          MENSUALIDAD_PRONTO_PAGO: document.getElementById('gb_MENSUALIDAD_PRONTO_PAGO').value,
+          TASA_PRONTO_PAGO: document.getElementById('gb_TASA_PRONTO_PAGO').value,
+          TASA_RECARGO: document.getElementById('gb_TASA_RECARGO').value,
+          DIA_LIMITE_PP: document.getElementById('gb_DIA_LIMITE_PP').value,
+          DIA_LIMITE_NORMAL: document.getElementById('gb_DIA_LIMITE_NORMAL').value
+        },
+        excepciones: Array.from(document.querySelectorAll('#listaEx tr')).map(tr => ({
+          unidad: tr.querySelector('input[type="text"]').value.toUpperCase(),
+          cuota: tr.querySelector('input[type="number"]').value,
+          pierde: tr.querySelector('input[type="checkbox"]').checked ? 'SI' : 'NO'
+        }))
+      };
+      google.script.run.withSuccessHandler(() => { alert("Configuración Guardada."); init(); }).guardarTodo_Final(payload);
+    }
+
+    function tab(x) {
+      document.getElementById('sec-m').classList.toggle('hidden', x !== 'm');
+      document.getElementById('sec-e').classList.toggle('hidden', x !== 'e');
+      document.getElementById('sec-u').classList.toggle('hidden', x !== 'u');
+      document.getElementById('tm').className = `flex-1 p-5 font-black uppercase text-xs ${x==='m'?'tab-active-blue':'text-slate-400'}`;
+      document.getElementById('te').className = `flex-1 p-5 font-black uppercase text-xs ${x==='e'?'tab-active-green':'text-slate-400'}`;
+      document.getElementById('tu').className = `flex-1 p-5 font-black uppercase text-xs ${x==='u'?'tab-active-orange':'text-slate-400'}`;
+    }
+
+    function loadU() {
+      let id = document.getElementById('selU').value;
+      let u = _DATA.catalogo.find(x => x.id == id);
+      if(u) {
+        document.getElementById('ip').value = u.prop;
+        document.getElementById('ir').value = u.rent;
+        document.getElementById('im').value = u.mail;
+      }
+    }
+
+    function saveU() {
+      showLoading("Actualizando directorio...");
+      let u = { id: document.getElementById('selU').value, depto: _DATA.catalogo.find(x => x.id == document.getElementById('selU').value).depto, prop: document.getElementById('ip').value, rent: document.getElementById('ir').value, mail: document.getElementById('im').value };
+      google.script.run.withSuccessHandler(() => { alert("Datos Actualizados."); init(); }).actualizarUnidad_Final(u);
+    }
+  </script>
+</body>
+</html>

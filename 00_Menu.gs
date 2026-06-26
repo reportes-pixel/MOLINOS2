@@ -261,3 +261,25 @@ function abrirFormReporteDeudaReal() {
 }
 
 
+/**
+ * Abre el panel de configuración de cobros y catálogo de unidades
+ */
+function abrirFormConfiguracion() {
+  const html = HtmlService.createTemplateFromFile('Form_Configuracion')
+      .evaluate()
+      .setWidth(1000) // Un poco más ancho para que luzcan las 5 columnas
+      .setHeight(700);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Panel de Configuración y Auditoría');
+}
+
+
+function abrirForm_EditorCargos() {
+  const html = HtmlService.createTemplateFromFile('Form_EditorCargos')
+      .evaluate()
+      .setWidth(1000)
+      .setHeight(700);
+  SpreadsheetApp.getUi().showModalDialog(html, '🛠️ Gestor Manual de Cargos y Convenios');
+}
+
+
+

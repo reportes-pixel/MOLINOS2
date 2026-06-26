@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Residentes - Molinos Real II</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body { background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .select2-container .select2-selection--single { height: 48px !important; border: 1px solid #e5e7eb !important; border-radius: 0.5rem !important; display: flex; align-items: center; background-color: #f9fafb; }
+    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 46px !important; }
+    
+    /* VISTA DE IMPRESIÓN */
+    #vista-impresion { display: none; }
+    .tabla-contable { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+    .tabla-contable th, .tabla-contable td { border: 1px solid #9ca3af; padding: 6px 8px; text-align: left; }
+    .tabla-contable th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+
+    @media print {
+      body { background-color: white; margin: 0; padding: 0; color: black; }
+      #view-login, #view-dashboard, .no-print { display: none !important; }
+      #vista-impresion { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    }
+  </style>
+</head>
+<body class="text-gray-800">
+
+  <div id="pantalla-carga-pdf" class="hidden fixed inset-0 bg-blue-600 z-[9999] flex flex-col items-center justify-center text-white">
+    <i class="fas fa-file-pdf fa-4x mb-4 animate-bounce"></i>
+    <h2 class="text-2xl font-black tracking-widest uppercase text-center">Generando PDF...</h2>
+    <p class="text-sm font-bold mt-2 opacity-80 text-center">No cierres esta pantalla</p>
+  </div>
+
+  <div id="view-login" class="min-h-screen flex flex-col justify-center p-4 max-w-md mx-auto fade-in">
+    <div class="text-center mb-6">
+      <div class="bg-blue-600 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-lg mb-4 border-4 border-blue-100">
+        <i class="fas fa-building fa-2x"></i>
+      </div>
+      <h1 class="text-3xl font-black text-blue-900 tracking-tight">Molinos Real II</h1>
+      <p class="text-blue-500 font-bold text-xs uppercase tracking-widest mt-1">Portal Residentes</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-blue-600">
+      <div class="space-y-5">
+        <div>
+          <label class="block text-xs font-bold text-blue-900 mb-2">Unidad / Departamento</label>
+          <select id="idUnidad" class="w-full" style="width: 100%;">
+            <option value="">Cargando lista...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-blue-900 mb-2">PIN de Acceso</label>
+          <input type="password" id="pin" maxlength="4" inputmode="numeric" placeholder="••••" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-center text-3xl font-black tracking-[0.5em] outline-none focus:border-blue-500 transition text-blue-600">
+        </div>
+        <button onclick="intentarEntrar()" id="btnEntrar" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg shadow-md hover:bg-blue-700 transition active:scale-95 mt-2 disabled:opacity-50">
+          INGRESAR AL SISTEMA
+        </button>
+        <div id="msgError" class="hidden text-center text-red-500 text-xs font-bold bg-red-50 p-3 rounded-lg border border-red-100 mt-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-dashboard" class="hidden min-h-screen pb-10 bg-[#f0f4f8]">
+    <div class="bg-blue-600 text-white pt-8 pb-20 px-6 rounded-b-[2.5rem] shadow-lg relative">
+      <div class="flex justify-between items-center mb-6 max-w-xl mx-auto">
+        <div>
+          <p class="text-blue-200 text-[10px] font-black uppercase tracking-widest mb-1" id="lblDepto">Unidad --</p>
+          <h2 id="lblNombre" class="text-xl font-bold leading-tight">Residente</h2>
+        </div>
+        <button onclick="cerrarSesion()" class="bg-blue-700 hover:bg-red-500 p-3 rounded-xl transition text-white shadow-inner">
+          <i class="fas fa-power-off"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="max-w-xl mx-auto px-6 -mt-14 space-y-4 relative z-10">
+      
+      <div class="bg-white p-6 rounded-3xl shadow-xl border border-gray-100 text-center">
+        <p class="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Monto para liquidar hoy</p>
+        <p id="txtTotal" class="text-4xl font-black text-blue-900 tracking-tight">$0.00</p>
+        <div id="badge" class="mt-3 inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase">---</div>
+        
+        <div id="cajaFavorMovil" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Saldo a tu favor</p>
+          <p id="txtFavorMovil" class="text-2xl font-black text-blue-600">$0.00</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 no-print">
+        <button onclick="window.print()" class="w-full bg-slate-800 text-white font-bold py-3 rounded-xl shadow-md hover:bg-slate-900 transition flex justify-center items-center gap-2 active:scale-95 text-xs">
+          <i class="fas fa-print text-gray-300"></i> Ver / Imprimir
+        </button>
+        <button onclick="descargarPDFDirecto()" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl shadow-md hover:bg-red-700 transition flex justify-center items-center gap-2 active:scale-95 text-xs">
+          <i class="fas fa-file-pdf"></i> Descargar PDF
+        </button>
+      </div>
+
+      <div class="mt-8">
+        <h3 class="text-sm font-black text-blue-900 uppercase mb-4 flex items-center border-b-2 border-gray-200 pb-2">
+          <i class="fas fa-list-alt mr-2 text-blue-600"></i> Movimientos Recientes
+        </h3>
+        <div id="contenedorHistorialMovil" class="space-y-3"></div>
+        <button id="btnVerMas" onclick="mostrarTodo()" class="hidden w-full mt-6 bg-white border-2 border-gray-200 text-blue-600 font-bold py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-gray-50 no-print transition">
+          Cargar historial completo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="vista-impresion" class="bg-white">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+      <div>
+        <h1 style="font-size: 26px; font-weight: 900; text-transform: uppercase; color: #111827; margin: 0;">Estado de Cuenta</h1>
+        <h2 style="font-size: 14px; font-weight: bold; color: #4b5563; text-transform: uppercase; margin: 0;">Condominio Molinos Real II</h2>
+      </div>
+      <div style="text-align: right;">
+        <p style="font-size: 10px; color: #6b7280; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">Unidad Correspondiente</p>
+        <p style="font-size: 22px; font-weight: 900; color: #1d4ed8; border: 1px solid #bfdbfe; background-color: #eff6ff; padding: 4px 16px; border-radius: 4px; display: inline-block; margin: 0;" id="printUnidad">--</p>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 15px; margin-bottom: 30px;">
+      <div style="flex: 1; border: 1px solid #d1d5db; background-color: #f9fafb; padding: 12px; text-align: center; border-radius: 4px;">
+        <p style="font-size: 9px; font-weight: bold; color: #6b7280; text-transform: uppercase; margin: 0;">Total Cargos</p>
+        <p style="font-size: 16px; font-weight: bold; color: #1f2937; margin: 5px 0 0 0;" id="printCargos">$0.00</p>
+      </div>
+      
+      <div style="flex: 1; border: 2px solid #22c55e; background-color: #f0fdf4; padding: 12px; text-align: center; border-radius: 4px;" id="printBoxDeuda">
+        <p style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #166534; margin: 0;">Deuda Pendiente</p>
+        <p style="font-size: 20px; font-weight: 900; color: #166534; margin: 5px 0 0 0;" id="printDeuda">$0.00</p>
+      </div>
+
+      <div style="flex: 1; border: 2px solid #3b82f6; background-color: #eff6ff; padding: 12px; text-align: center; border-radius: 4px; display: none;" id="printBoxFavor">
+        <p style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #1d4ed8; margin: 0;">Tu Saldo a Favor</p>
+        <p style="font-size: 20px; font-weight: 900; color: #1d4ed8; margin: 5px 0 0 0;" id="printFavor">$0.00</p>
+      </div>
+    </div>
+
+    <h3 style="font-size: 14px; font-weight: bold; border-bottom: 2px solid #111827; padding-bottom: 4px; text-transform: uppercase; color: #111827;">Historial Cronológico</h3>
+    <table class="tabla-contable" style="color: #111827;">
+      <thead>
+        <tr>
+          <th style="width: 15%;">Fecha</th>
+          <th style="width: 40%;">Concepto</th>
+          <th style="text-align: right;">Cargo ($)</th>
+          <th style="text-align: right;">Abono ($)</th>
+          <th style="text-align: right;">Acumulado</th>
+        </tr>
+      </thead>
+      <tbody id="printTablaBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let misDatosCompletos = [];
+
+    $(document).ready(function() {
+      $('#idUnidad').select2({ placeholder: "Cargando..." });
+      google.script.run.withSuccessHandler(unidades => {
+        const select = $('#idUnidad');
+        select.empty().append('<option value="">-- Elige tu unidad --</option>');
+        unidades.forEach(u => { if(u !== "TODOS") select.append(new Option(u, u)); });
+        select.select2({ placeholder: "Escribe o selecciona tu unidad...", width: '100%' });
+      }).obtenerUnidadesParaEstadoCuenta();
+    });
+
+    function intentarEntrar() {
+      const id = $('#idUnidad').val();
+      const pin = $('#pin').val();
+      if(!id || !pin) return;
+      
+      $('#btnEntrar').prop('disabled', true).text('VERIFICANDO...');
+      google.script.run.withSuccessHandler(res => {
+        if(res.success) {
+          $('#lblDepto').text("UNIDAD " + res.idUnidad);
+          $('#lblNombre').text(res.nombre);
+          $('#view-login').addClass('hidden');
+          $('#view-dashboard').removeClass('hidden');
+          cargarDatos(res.idUnidad);
+        } else {
+          $('#msgError').text(res.message).removeClass('hidden');
+          $('#btnEntrar').prop('disabled', false).text('INGRESAR AL SISTEMA');
+        }
+      }).validarLoginResidente(id, pin);
+    }
+
+    function cerrarSesion() {
+      $('#pin').val('');
+      $('#idUnidad').val(null).trigger('change');
+      $('#msgError').addClass('hidden');
+      $('#btnEntrar').prop('disabled', false).text('INGRESAR AL SISTEMA');
+      $('#view-dashboard').addClass('hidden');
+      $('#view-login').removeClass('hidden');
+    }
+
+
+/**
+     * ESTO VA EN EL HTML
+     * Llama al servidor, recibe el PDF y lo descarga automáticamente.
+     */
+    function descargarPDFDirecto() {
+      const idUnidad = $('#printUnidad').text();
+      // Obtenemos el HTML de la vista de impresión que ya tenemos armada
+      const htmlContenido = document.getElementById('vista-impresion').innerHTML;
+
+      // 1. Mostrar pantalla de carga
+      $('#pantalla-carga-pdf').removeClass('hidden');
+
+      // 2. Ejecutar la función del servidor
+      google.script.run
+        .withSuccessHandler(function(base64) {
+          // 3. Crear el link de descarga con el archivo que nos mandó Google
+          const link = document.createElement('a');
+          link.href = 'data:application/pdf;base64,' + base64;
+          link.download = "Estado_Cuenta_" + idUnidad + ".pdf";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          // 4. Quitar pantalla de carga
+          $('#pantalla-carga-pdf').addClass('hidden');
+        })
+        .withFailureHandler(function(err) {
+          alert("Error al generar PDF: " + err);
+          $('#pantalla-carga-pdf').addClass('hidden');
+        })
+        .generarPDFServidor(idUnidad, htmlContenido);
+    }
+
+    
+
+    function dibujarMovil(limite) {
+      const fmt = (n) => "$" + Number(n || 0).toLocaleString('es-MX',{minimumFractionDigits:2});
+      const data = misDatosCompletos.slice(0, limite);
+      
+      if(data.length === 0){
+        $('#contenedorHistorialMovil').html("<p class='text-center py-5 text-gray-400 font-bold'>Sin movimientos</p>");
+      } else {
+        $('#contenedorHistorialMovil').html(data.map(m => {
+          const esC = m.cargo > 0;
+          return `
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <div class="${esC?'bg-red-50 text-red-500':'bg-green-50 text-green-600'} w-10 h-10 flex items-center justify-center rounded-full shrink-0">
+                  <i class="fas ${esC?'fa-arrow-up':'fa-check'}"></i>
+                </div>
+                <div>
+                  <p class="text-[9px] font-black ${esC?'text-red-500':'text-green-600'} uppercase">${esC?'Cargo a tu cuenta':'Pago Recibido'}</p>
+                  <p class="font-bold text-blue-900 text-sm leading-tight">${m.concepto}</p>
+                  <p class="text-[10px] text-gray-500 font-semibold mt-1">${m.fecha}</p>
+                </div>
+              </div>
+              <p class="font-black ${esC?'text-gray-800':'text-green-600'}">${esC?'':'-'}${fmt(esC?m.cargo:m.pago)}</p>
+            </div>`;
+        }).join(''));
+      }
+
+      if(misDatosCompletos.length > limite) $('#btnVerMas').removeClass('hidden');
+      else $('#btnVerMas').addClass('hidden');
+    }
+
+
+
+
+
+
+    function mostrarTodo() { dibujarMovil(9999); }
+
+    function cargarDatos(id) {
+      google.script.run.withSuccessHandler(res => {
+        const fmt = (n) => "$" + Number(n || 0).toLocaleString('es-MX',{minimumFractionDigits:2});
+        
+        $('#txtTotal').text(fmt(res.resumen.totalAPagar));
+        const badge = $('#badge');
+        if(res.resumen.totalAPagar > 0) {
+          badge.attr('class', 'mt-3 inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-700').text('Saldo Pendiente');
+        } else {
+          badge.attr('class', 'mt-3 inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase bg-green-100 text-green-700').text('Al Corriente');
+        }
+
+        misDatosCompletos = res.historial_movil;
+        dibujarMovil(10);
+
+        let saldoFavor = 0;
+        if(res.historial_pdf.length > 0) {
+          let ultimoAcumulado = res.historial_pdf[res.historial_pdf.length - 1].saldo;
+          if(ultimoAcumulado < 0) saldoFavor = Math.abs(ultimoAcumulado);
+        }
+
+        if (saldoFavor > 0) {
+            $('#cajaFavorMovil').removeClass('hidden');
+            $('#txtFavorMovil').text(fmt(saldoFavor));
+        } else {
+            $('#cajaFavorMovil').addClass('hidden');
+        }
+
+        $('#printUnidad').text(id);
+        $('#printCargos').text(fmt(res.resumen.totalCargos));
+        $('#printDeuda').text(fmt(res.resumen.totalAPagar));
+        
+        const bPDF = document.getElementById('printBoxDeuda');
+        if(res.resumen.totalAPagar > 0) {
+          bPDF.style.borderColor = "#ef4444"; bPDF.style.backgroundColor = "#fef2f2";
+          $('#printLabelDeuda').css('color', '#991b1b');
+          $('#printDeuda').css('color', '#991b1b');
+        } else {
+          bPDF.style.borderColor = "#22c55e"; bPDF.style.backgroundColor = "#f0fdf4";
+          $('#printLabelDeuda').css('color', '#166534');
+          $('#printDeuda').css('color', '#166534');
+        }
+        
+        if(saldoFavor > 0) {
+          $('#printBoxFavor').show();
+          $('#printFavor').text(fmt(saldoFavor));
+        } else {
+          $('#printBoxFavor').hide();
+        }
+
+        $('#printTablaBody').html(res.historial_pdf.map(t => `
+          <tr>
+            <td style="color:#6b7280;">${t.fecha}</td>
+            <td style="font-weight:bold;">${t.concepto}</td>
+            <td style="text-align:right;">${t.cargo > 0 ? fmt(t.cargo) : '-'}</td>
+            <td style="text-align:right; color:#15803d;">${t.pago > 0 ? fmt(t.pago) : '-'}</td>
+            <td style="text-align:right; font-weight:bold; ${t.saldo < 0 ? 'color:#1d4ed8; font-style:italic;' : ''}">${fmt(t.saldo)}</td>
+          </tr>
+        `).join(''));
+      }).getDatosPortalResidente(id);
+    }
+  </script>
+</body>
+</html>

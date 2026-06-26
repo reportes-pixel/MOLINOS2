@@ -503,96 +503,481 @@ function obtenerUnidadesParaEstadoCuenta() {
   return arrayUnidades;
 }
 
-function generarEstadoCuentaWebApp(targetUnit, crearExcel) {
+
+
+
+
+
+
+
+
+function v3generarEstadoCuentaWebApp(targetUnit, crearExcel) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
   const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
-  
-  if (!cargosSheet || !pagosSheet) return { success: false, message: "Faltan hojas base en el documento." };
-  
+  const favorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !favorSheet) return { success: false, message: "Faltan hojas." };
+
+  // 1. Mapa de la hoja SALDOS_A_FAVOR (Solo para ver inconsistencias)
+  const mapaSaldosSistema = {};
+  favorSheet.getDataRange().getValues().slice(1).forEach(row => {
+    mapaSaldosSistema[String(row[0]).trim().toUpperCase()] = Number(row[1]) || 0;
+  });
+
   const cargos = cargosSheet.getDataRange().getValues().slice(1);
   const pagos = pagosSheet.getDataRange().getValues().slice(1);
-  let transacciones = [];
-  
+  let todasLasTransacciones = [];
+  let ultimoSobranteUnidad = {}; // Para guardar el último TOTAL_SALDO_SOBRANTE (Col H)
+
+  // 2. Procesar CARGOS
   cargos.forEach(row => {
-      const idUnidad = String(row[1]).trim().toUpperCase();
-      if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
-      transacciones.push({
-          unidad: idUnidad, fecha: new Date(row[3]), concepto: String(row[2]),
-          estado: String(row[5] || "PENDIENTE").toUpperCase(), cargo: Number(row[4]) || 0,
-          pago: 0, tipo: 'CARGO', id: row[0]
-      });
+    const idUnidad = String(row[1]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    todasLasTransacciones.push({
+      unidad: idUnidad, fecha: new Date(row[3]), concepto: String(row[2]),
+      cargo: Number(row[4]) || 0, pago: 0, tipo: 'CARGO'
+    });
   });
-  
+
+  // 3. Procesar PAGOS (Basado en tu ejemplo de 18A)
   pagos.forEach(row => {
-      const idUnidad = String(row[2]).trim().toUpperCase(); 
-      if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
-      const montoAplicado = Number(row[5]) || 0; 
-      if (montoAplicado === 0) return; 
+    const idUnidad = String(row[2]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
 
-      transacciones.push({
-          unidad: idUnidad, fecha: new Date(row[1]), concepto: `PAGO: ${String(row[9] || "Sin concepto")}`,
-          estado: "PAGO", cargo: 0, pago: montoAplicado, tipo: 'PAGO', id: row[0]
+    const montoAplicado = Number(row[5]) || 0; // Col F: MONTO_APLICADO
+    const saldoSobranteTotal = Number(row[7]) || 0; // Col H: TOTAL_SALDO_SOBRANTE
+    
+    // Guardamos el último valor de la columna H encontrado para esta unidad
+    ultimoSobranteUnidad[idUnidad] = saldoSobranteTotal;
+
+    todasLasTransacciones.push({
+      unidad: idUnidad, fecha: new Date(row[1]), 
+      concepto: `PAGO: ${String(row[9] || "ANTICIPO")}`,
+      cargo: 0, pago: montoAplicado, tipo: 'PAGO'
+    });
+  });
+
+  const unidadesUnicas = [...new Set(todasLasTransacciones.map(t => t.unidad))].sort();
+  const detallesParaFront = [];
+  const resumenParaFront = [];
+
+  unidadesUnicas.forEach(id => {
+    const movimientos = todasLasTransacciones
+      .filter(t => t.unidad === id)
+      .sort((a, b) => a.fecha - b.fecha);
+
+    let sumaCargos = 0;
+    let sumaPagosAplicados = 0;
+    let saldoAcumulado = 0;
+    const historialFinal = [];
+
+    movimientos.forEach(m => {
+      saldoAcumulado = saldoAcumulado + m.cargo - m.pago;
+      sumaCargos += m.cargo;
+      sumaPagosAplicados += m.pago;
+      
+      historialFinal.push({
+        fecha: Utilities.formatDate(m.fecha, Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        concepto: m.concepto, cargo: m.cargo, pago: m.pago, saldo: saldoAcumulado
       });
+    });
+
+    const saldoSobranteHojaPagos = ultimoSobranteUnidad[id] || 0;
+    const saldoSistemaReferencia = mapaSaldosSistema[id] || 0;
+
+    // La deuda neta es pura: Cargos - Pagos Aplicados
+    const deudaNetaReal = sumaCargos - sumaPagosAplicados;
+
+    const objetoUnidad = {
+      unidad: id,
+      totalCargos: sumaCargos,
+      totalPagos: sumaPagosAplicados,
+      saldoAFavor: saldoSobranteHojaPagos, // Saldo de la Columna H
+      saldoSistema: saldoSistemaReferencia, // Saldo de la hoja SALDOS_A_FAVOR
+      deudaNeta: deudaNetaReal,
+      historial: historialFinal
+    };
+
+    resumenParaFront.push(objetoUnidad);
+    detallesParaFront.push(objetoUnidad);
   });
 
-  if (transacciones.length === 0) return { success: false, message: `No hay transacciones registradas para ${targetUnit}.` };
-  
-  transacciones.sort((a, b) => a.fecha - b.fecha);
-  
-  let saldoAcumulado = 0; 
-  let totalCargos = 0;
-  let totalPagos = 0;
-  
-  const datosParaFront = [];
-  const datosParaExcel = [];
-  
-  transacciones.forEach(t => {
-      saldoAcumulado = saldoAcumulado + t.cargo - t.pago; 
-      totalCargos += t.cargo;
-      totalPagos += t.pago;
-      
-      // Datos formateados para el HTML (PDF)
-      datosParaFront.push([
-          t.unidad, 
-          Utilities.formatDate(t.fecha, Session.getScriptTimeZone(), "dd/MM/yyyy"), 
-          t.concepto, 
-          t.cargo, 
-          t.pago, 
-          saldoAcumulado
-      ]);
+  return { success: true, isTodos: (targetUnit === 'TODOS'), resumen: resumenParaFront, detalles: detallesParaFront };
+}
 
-      // Datos crudos para el Excel (fechas reales y números reales)
-      datosParaExcel.push([t.unidad, t.fecha, t.concepto, t.estado, t.cargo, t.pago, saldoAcumulado]);
+
+
+
+
+/**
+ * PROYECTO: Estado de Cuenta Condominal - Molinos Real II
+ * Lógica: Auditoría cruzada entre Cargos, Pagos y Saldos en Sistema
+ */
+
+function v4generarEstadoCuentaWebApp(targetUnit, crearExcel) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const favorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !favorSheet) {
+    return { success: false, message: "Error: No se encontró una de las hojas (CARGOS_Y_DEUDAS, REGISTRO_PAGOS o SALDOS_A_FAVOR)." };
+  }
+
+  // 1. Obtener Saldos en Sistema (Hoja SALDOS_A_FAVOR)
+  // Col A: ID_UNIDAD, Col B: SALDO_DISPONIBLE
+  const mapaSaldosSistema = {};
+  const datosFavor = favorSheet.getDataRange().getValues().slice(1);
+  datosFavor.forEach(row => {
+    const id = String(row[0]).trim().toUpperCase();
+    if (id) mapaSaldosSistema[id] = Number(row[1]) || 0;
   });
 
-  // ==============================================================================
-  // CREAR PESTAÑA DE EXCEL (SOLO SI EL USUARIO LO PIDIÓ)
-  // ==============================================================================
+  const cargos = cargosSheet.getDataRange().getValues().slice(1);
+  const pagos = pagosSheet.getDataRange().getValues().slice(1);
+  
+  let unidadesMap = {};
+  let ultimoSobranteUnidad = {}; 
+
+  // 2. Cargar Cargos
+  cargos.forEach(row => {
+    const idUnidad = String(row[1]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    if (!unidadesMap[idUnidad]) unidadesMap[idUnidad] = [];
+    
+    unidadesMap[idUnidad].push({
+      fecha: new Date(row[3]), 
+      concepto: String(row[2]),
+      cargo: Number(row[4]) || 0, 
+      pago: 0
+    });
+  });
+
+  // 3. Cargar Pagos (Auditoría: Col F Aplicado, Col H Sobrante Acumulado)
+  pagos.forEach(row => {
+    const idUnidad = String(row[2]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    if (!unidadesMap[idUnidad]) unidadesMap[idUnidad] = [];
+
+    const montoAplicado = Number(row[5]) || 0; 
+    const totalSobranteH = Number(row[7]) || 0; 
+    
+    // El último registro de la hoja manda sobre el sobrante
+    ultimoSobranteUnidad[idUnidad] = totalSobranteH;
+
+    unidadesMap[idUnidad].push({
+      fecha: new Date(row[1]), 
+      concepto: `PAGO: ${String(row[9] || "ANTICIPO / S/C")}`,
+      cargo: 0, 
+      pago: montoAplicado
+    });
+  });
+
+  const unidadesUnicas = Object.keys(unidadesMap).sort();
+  const detallesParaFront = [];
+  const resumenParaFront = [];
+
+  unidadesUnicas.forEach(id => {
+    const movimientos = unidadesMap[id].sort((a, b) => a.fecha - b.fecha);
+    let sCargo = 0, sPago = 0, sAcum = 0;
+
+    const historialFinal = movimientos.map(m => {
+      sAcum = sAcum + m.cargo - m.pago;
+      sCargo += m.cargo;
+      sPago += m.pago;
+      return {
+        fecha: Utilities.formatDate(m.fecha, Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        concepto: m.concepto, 
+        cargo: m.cargo, 
+        pago: m.pago, 
+        saldo: sAcum
+      };
+    });
+
+    const sobranteH = ultimoSobranteUnidad[id] || 0;
+    const saldoSis = mapaSaldosSistema[id] || 0;
+    const deudaNeta = sCargo - sPago;
+
+    const dataObj = {
+      unidad: id,
+      totalCargos: sCargo,
+      totalPagos: sPago,
+      saldoAFavor: sobranteH, 
+      saldoSistema: saldoSis,     
+      deudaNeta: deudaNeta,
+      historial: historialFinal
+    };
+
+    resumenParaFront.push(dataObj);
+    detallesParaFront.push(dataObj);
+  });
+
+  // Si se marcó el Checkbox de Excel
   if (crearExcel) {
-      const nombreHoja = targetUnit === 'TODOS' ? `EDO_CTA_GLOBAL` : `EDO_CTA_${targetUnit}`;
-      let reporteSheet = ss.getSheetByName(nombreHoja) || ss.insertSheet(nombreHoja);
-      reporteSheet.clear();
-      
-      const headers = ["UNIDAD", "FECHA", "CONCEPTO", "ESTADO", "CARGO", "PAGO", "SALDO_ACUMULADO"];
-      reporteSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold").setBackground("#1e293b").setFontColor("white");
-      reporteSheet.getRange(2, 1, datosParaExcel.length, headers.length).setValues(datosParaExcel);
-      reporteSheet.getRange(2, 5, datosParaExcel.length, 3).setNumberFormat("$#,##0.00");
-      reporteSheet.getRange(2, 2, datosParaExcel.length, 1).setNumberFormat("dd/MM/yyyy");
-      reporteSheet.autoResizeColumns(1, headers.length);
+    // Aquí puedes disparar tu función de generación de Excel si la tienes
+    // Por ejemplo: generarArchivoExcel(detallesParaFront);
   }
 
   return {
-      success: true,
-      unidad: targetUnit,
-      totalCargos: totalCargos,
-      totalPagos: totalPagos,
-      saldoActual: saldoAcumulado,
-      historial: datosParaFront
+    success: true,
+    isTodos: (targetUnit === 'TODOS'),
+    resumen: resumenParaFront,
+    detalles: detallesParaFront
+  };
+}
+
+function obtenerUnidadesParaEstadoCuenta() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const datos = sheet.getDataRange().getValues().slice(1);
+  return [...new Set(datos.map(r => String(r[1]).trim()))].filter(u => u !== "").sort();
+}
+
+
+
+
+
+
+function xxxxxgenerarEstadoCuentaWebApp(targetUnit, crearExcel) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const favorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !favorSheet) return { success: false, message: "Faltan hojas." };
+
+  // 1. Mapa de Saldos en Sistema
+  const mapaSaldosSistema = {};
+  favorSheet.getDataRange().getValues().slice(1).forEach(row => {
+    const id = String(row[0]).trim().toUpperCase();
+    if (id) mapaSaldosSistema[id] = Number(row[1]) || 0;
+  });
+
+  const cargos = cargosSheet.getDataRange().getValues().slice(1);
+  const pagos = pagosSheet.getDataRange().getValues().slice(1);
+  let todasTransacciones = [];
+  let ultimoSobranteUnidad = {}; 
+
+  // 2. Cargar Cargos
+  cargos.forEach(row => {
+    const idUnidad = String(row[1]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[3]), 
+      concepto: String(row[2]),
+      cargo: Number(row[4]) || 0, 
+      pagoVisual: 0,
+      pagoAplicado: 0
+    });
+  });
+
+  // 3. Cargar Pagos
+  pagos.forEach(row => {
+    const idUnidad = String(row[2]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+
+    const montoRecibido = Number(row[4]) || 0; // Col E: Lo que entró a caja
+    const montoAplicado = Number(row[5]) || 0; // Col F: Lo que mató deuda
+    const totalSobranteH = Number(row[7]) || 0; // Col H: Sobrante acumulado
+    
+    ultimoSobranteUnidad[idUnidad] = totalSobranteH;
+
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[1]), 
+      concepto: `PAGO: ${String(row[9] || "ANTICIPO / SOBRANTE")}`,
+      cargo: 0, 
+      pagoVisual: montoRecibido, // Usamos este para la tabla
+      pagoAplicado: montoAplicado // Usamos este para la Deuda Neta
+    });
+  });
+
+  const unidadesUnicas = [...new Set(todasTransacciones.map(t => t.unidad))].sort();
+  const detallesParaFront = [];
+  const resumenParaFront = [];
+
+  unidadesUnicas.forEach(id => {
+    const movimientos = todasTransacciones
+      .filter(t => t.unidad === id)
+      .sort((a, b) => a.fecha - b.fecha);
+
+    let sumaCargos = 0, sumaPagosAplicados = 0, saldoAcumulado = 0;
+    const historialFinal = movimientos.map(m => {
+      // El acumulado de la tabla
+      saldoAcumulado = saldoAcumulado + m.cargo - (m.pagoVisual > 0 ? m.pagoVisual : m.pagoAplicado);
+      sumaCargos += m.cargo;
+      sumaPagosAplicados += m.pagoAplicado;
+
+      return {
+        fecha: Utilities.formatDate(m.fecha, Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        concepto: m.concepto, 
+        cargo: m.cargo, 
+        pago: m.pagoVisual > 0 ? m.pagoVisual : (m.pagoAplicado > 0 ? m.pagoAplicado : 0), 
+        saldo: saldoAcumulado
+      };
+    });
+
+    const sobranteH = ultimoSobranteUnidad[id] || 0;
+    const saldoSis = mapaSaldosSistema[id] || 0;
+
+    // --- CORRECCIÓN DE MAGIA CONTABLE ---
+    // 1. Calculamos la deuda pura (Lo cobrado menos lo aplicado)
+    let deudaBruta = sumaCargos - sumaPagosAplicados;
+    // 2. Le restamos el saldo a favor oficial del sistema
+    let deudaReal = deudaBruta - saldoSis;
+    // 3. Si la deuda real es menor a cero (tiene de sobra), la deuda es $0
+    let deudaNetaFinal = deudaReal > 0 ? deudaReal : 0;
+
+    const dataObj = {
+      unidad: id,
+      totalCargos: sumaCargos,
+      totalPagos: sumaPagosAplicados,
+      saldoAFavor: sobranteH, 
+      saldoSistema: saldoSis,     
+      deudaNeta: deudaNetaFinal, // ¡Parche aplicado!
+      historial: historialFinal
+    };
+
+    resumenParaFront.push(dataObj);
+    detallesParaFront.push(dataObj);
+  });
+
+  return {
+    success: true,
+    isTodos: (targetUnit === 'TODOS'),
+    resumen: resumenParaFront,
+    detalles: detallesParaFront
   };
 }
 
 
+
+
+
+
+function VIEJOOOOgenerarEstadoCuentaWebApp(targetUnit, crearExcel) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const favorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+  if (!cargosSheet || !pagosSheet || !favorSheet) return { success: false, message: "Faltan hojas." };
+
+  // 1. Mapa de Saldos en Sistema
+  const mapaSaldosSistema = {};
+  favorSheet.getDataRange().getValues().slice(1).forEach(row => {
+    const id = String(row[0]).trim().toUpperCase();
+    if (id) mapaSaldosSistema[id] = Number(row[1]) || 0;
+  });
+
+  const cargos = cargosSheet.getDataRange().getValues().slice(1);
+  const pagos = pagosSheet.getDataRange().getValues().slice(1);
+  let todasTransacciones = [];
+  let ultimoSobranteUnidad = {}; 
+
+  // 2. Cargar Cargos
+  cargos.forEach(row => {
+    const idUnidad = String(row[1]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[3]), 
+      concepto: String(row[2]),
+      cargo: Number(row[4]) || 0, 
+      pagoVisual: 0,
+      pagoAplicado: 0
+    });
+  });
+
+  // 3. Cargar Pagos
+  pagos.forEach(row => {
+    const idUnidad = String(row[2]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+
+    const montoRecibido = Number(row[4]) || 0; // Col E: Lo que entró a caja físicamente
+    const montoAplicado = Number(row[5]) || 0; // Col F: Lo que mató deuda internamente
+    const totalSobranteH = Number(row[7]) || 0; // Col H: Sobrante acumulado
+    
+    ultimoSobranteUnidad[idUnidad] = totalSobranteH;
+
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[1]), 
+      concepto: `PAGO: ${String(row[9] || "ANTICIPO / SOBRANTE")}`,
+      cargo: 0, 
+      pagoVisual: montoRecibido, // Usamos este para la tabla visual
+      pagoAplicado: montoAplicado // Usamos este para la Deuda Neta Global
+    });
+  });
+
+  const unidadesUnicas = [...new Set(todasTransacciones.map(t => t.unidad))].sort();
+  const detallesParaFront = [];
+  const resumenParaFront = [];
+
+  unidadesUnicas.forEach(id => {
+    const movimientos = todasTransacciones
+      .filter(t => t.unidad === id)
+      .sort((a, b) => a.fecha - b.fecha);
+
+    let sumaCargos = 0, sumaPagosAplicados = 0, saldoAcumulado = 0;
+    const historialFinal = [];
+
+    // --- CORRECCIÓN DEL BUCLE DE HISTORIAL ---
+    movimientos.forEach(m => {
+      // 1. Siempre sumamos los cargos y las aplicaciones para las cajas de resumen de arriba
+      sumaCargos += m.cargo;
+      sumaPagosAplicados += m.pagoAplicado;
+
+      // 2. FILTRO ANTI-DOBLE CONTEO:
+      // Si es un pago donde NO entró dinero real (montoRecibido = 0), es solo una aplicación de Saldo.
+      // Lo omitimos visualmente de la tabla para que no reste 2 veces en el "Acumulado".
+      if (m.cargo === 0 && m.pagoVisual === 0) {
+        return; 
+      }
+
+      // 3. El acumulado de la tabla solo baja si entró dinero físico (pagoVisual)
+      saldoAcumulado = saldoAcumulado + m.cargo - m.pagoVisual;
+
+      historialFinal.push({
+        fecha: Utilities.formatDate(m.fecha, Session.getScriptTimeZone(), "dd/MM/yyyy"),
+        concepto: m.concepto, 
+        cargo: m.cargo, 
+        pago: m.pagoVisual, // En la tabla ahora siempre se imprime el dinero real recibido
+        saldo: saldoAcumulado
+      });
+    });
+
+    const sobranteH = ultimoSobranteUnidad[id] || 0;
+    const saldoSis = mapaSaldosSistema[id] || 0;
+
+    // --- MAGIA CONTABLE GLOBAL ---
+    let deudaBruta = sumaCargos - sumaPagosAplicados;
+    let deudaReal = deudaBruta - saldoSis;
+    let deudaNetaFinal = deudaReal > 0 ? deudaReal : 0;
+
+    const dataObj = {
+      unidad: id,
+      totalCargos: sumaCargos,
+      totalPagos: sumaPagosAplicados,
+      saldoAFavor: sobranteH, 
+      saldoSistema: saldoSis,     
+      deudaNeta: deudaNetaFinal, 
+      historial: historialFinal
+    };
+
+    resumenParaFront.push(dataObj);
+    detallesParaFront.push(dataObj);
+  });
+
+  return {
+    success: true,
+    isTodos: (targetUnit === 'TODOS'),
+    resumen: resumenParaFront,
+    detalles: detallesParaFront
+  };
+}
 
 // ==============================================================================
 // MÓDULO: REPORTE DE DEUDORES (RANKING MOROSIDAD)
@@ -787,146 +1172,549 @@ function generarReporteVencidasWebApp(fechaConsultaStr, crearExcel) {
  * REPORTE: Deuda Real (Integrado para Web App y Sincronización Externa)
  * Mantiene tu lógica original intacta.
  */
-function generarReporteDeudaRealWebApp(sincronizarExterno) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const ID_ARCHIVO_EXTERNO = "1yKAExPx4FbqIEj10t-ZZZFgp_ZIsodt3a5xPxCzsx8Y"; 
+function CONERRORESgenerarReporteDeudaRealWebApp(sincronizarExterno) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ID_ARCHIVO_EXTERNO = "1yKAExPx4FbqIEj10t-ZZZFgp_ZIsodt3a5xPxCzsx8Y"; 
 
-  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
-  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
-  const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+    const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+    const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
 
-  if (!cargosSheet || !pagosSheet || !saldosAFavorSheet) {
-    return { success: false, message: "Faltan hojas necesarias (CARGOS, PAGOS o SALDOS_A_FAVOR)." };
-  }
-
-  // 1. Cargar Saldos a Favor
-  const anticipos = {};
-  const anticiposData = saldosAFavorSheet.getDataRange().getValues().slice(1);
-  anticiposData.forEach(row => {
-    const id = String(row[0]); 
-    const monto = Number(row[1]) || 0; 
-    if (monto > 0) anticipos[id] = monto;
-  });
-
-  // 2. Lógica Fecha Actual
-  const hoy = new Date();
-  const mesActual = hoy.getMonth();
-  const anioActual = hoy.getFullYear();
-
-  // 3. Procesar Cargos (Tu lógica original de exclusión del mes actual)
-  const cargosData = cargosSheet.getDataRange().getValues().slice(1);
-  const deudasPorUnidad = {};
-
-  cargosData.forEach(row => {
-    const id = String(row[1]);
-    const concepto = String(row[2]);
-    const fechaCorte = new Date(row[3]);
-    const monto = Number(row[4]) || 0;
-    const estado = String(row[5]);
-
-    let esMesActual = false;
-    if (!isNaN(fechaCorte.getTime())) {
-      esMesActual = (fechaCorte.getMonth() === mesActual && fechaCorte.getFullYear() === anioActual);
+    if (!cargosSheet || !saldosAFavorSheet) {
+      return { success: false, message: "Error: No se encontró la hoja CARGOS_Y_DEUDAS o SALDOS_A_FAVOR." };
     }
 
-    if (estado !== "Pagado" && !esMesActual) {
-      if (!deudasPorUnidad[id]) deudasPorUnidad[id] = [];
-      deudasPorUnidad[id].push({concepto: concepto, monto: monto});
-    }
-  });
-
-  // 4. Construir Reporte (Tu matriz original)
-  const filasReporte = [];
-  const rankingReal = [];
-  const desgloseParaPDF = []; // Solo para la pantalla
-  let granTotalCondominio = 0;
-  const unidades = Object.keys(deudasPorUnidad).sort();
-
-  unidades.forEach(id => {
-    let sumaCargos = 0;
-    filasReporte.push([`Departamento ${id}`, ""]);
-    
-    const detallesUnidad = [];
-    deudasPorUnidad[id].forEach(item => {
-      filasReporte.push([item.concepto, item.monto]);
-      sumaCargos += item.monto;
-      detallesUnidad.push({concepto: item.concepto, monto: item.monto});
+    // 1. Cargar Saldos a Favor
+    const anticipos = {};
+    const anticiposData = saldosAFavorSheet.getDataRange().getValues().slice(1);
+    anticiposData.forEach(row => {
+      const id = String(row[0]).trim().toUpperCase(); 
+      const monto = Number(row[1]) || 0; 
+      if (id && monto > 0) anticipos[id] = monto;
     });
 
-    const saldoAFavor = anticipos[id] || 0;
-    const totalReal = Math.max(0, sumaCargos - saldoAFavor);
+    // 2. Lógica Fecha (Ignorar mes actual)
+    const hoy = new Date();
+    const mesActual = hoy.getMonth();
+    const anioActual = hoy.getFullYear();
 
-    if (saldoAFavor > 0) {
-      filasReporte.push(["Subtotal Cargos Pendientes", sumaCargos]);
-      filasReporte.push(["(-) SALDO A FAVOR DISPONIBLE", -saldoAFavor]);
-    }
+    const cargosData = cargosSheet.getDataRange().getValues().slice(1);
+    const deudasPorUnidad = {};
 
-    filasReporte.push([`TOTAL REAL A PAGAR ${id}`, totalReal]);
-    filasReporte.push(["", ""]);
+    cargosData.forEach(row => {
+      const id = String(row[1]).trim().toUpperCase();
+      if(!id) return;
+      
+      const concepto = String(row[2]);
+      const fechaCorte = new Date(row[3]);
+      const monto = Number(row[4]) || 0;
+      const estado = String(row[5]).trim();
 
-    if (totalReal > 0) {
-      granTotalCondominio += totalReal;
-      rankingReal.push({id: id, total: totalReal});
-    }
+      let esMesActual = false;
+      if (!isNaN(fechaCorte.getTime())) {
+        esMesActual = (fechaCorte.getMonth() === mesActual && fechaCorte.getFullYear() === anioActual);
+      }
 
-    // Guardamos para el PDF
-    desgloseParaPDF.push({
-      id: id,
-      subtotal: sumaCargos,
-      anticipo: saldoAFavor,
-      totalReal: totalReal,
-      detalles: detallesUnidad
+      // Solo deudas NO pagadas y que NO sean del mes actual
+      if (estado.toLowerCase() !== "pagado" && !esMesActual) {
+        if (!deudasPorUnidad[id]) deudasPorUnidad[id] = [];
+        deudasPorUnidad[id].push({concepto: concepto, monto: monto});
+      }
     });
-  });
 
-  filasReporte.push(["---------------------------------------", ""]);
-  filasReporte.push(["GRAN TOTAL RECUPERABLE", granTotalCondominio]);
-  filasReporte.push(["---------------------------------------", ""]);
-
-  rankingReal.sort((a, b) => b.total - a.total);
-  filasReporte.push(["", ""]);
-  filasReporte.push(["RANKING DE DEUDORES (MAYOR A MENOR)", ""]);
-  rankingReal.forEach(item => {
-    filasReporte.push([`Depto ${item.id}`, item.total]);
-  });
-
-  // 5. Función de Escritura (Tu lógica original)
-  const escribirEnHoja = (targetSS, nombre) => {
-    let sheet = targetSS.getSheetByName(nombre) || targetSS.insertSheet(nombre);
-    sheet.clear();
-    sheet.getRange(1, 1, filasReporte.length, 2).setValues(filasReporte);
-    sheet.setColumnWidth(1, 350);
-    sheet.getRange(1, 2, filasReporte.length, 1).setNumberFormat("$#,##0.00");
+    const unidades = Object.keys(deudasPorUnidad).sort();
     
-    for (let i = 0; i < filasReporte.length; i++) {
-      let t = String(filasReporte[i][0]);
-      if (t.startsWith("Departamento")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#D9EAD3");
-      if (t.startsWith("TOTAL REAL")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#FFF2CC");
-      if (t.includes("(-) SALDO")) sheet.getRange(i+1, 1, 1, 2).setFontColor("green").setFontStyle("italic");
-    }
-  };
+    // Arrays para el HTML y Excel
+    const desgloseDetallado = [];
+    const rankingReal = [];
+    const filasExcel = [];
+    
+    // Variables de las 3 Cajas Globales
+    let granTotalDeudasBruto = 0;
+    let granTotalAbonosFavor = 0;
+    let granTotalNetoPagar = 0;
 
-  // Ejecución
-  escribirEnHoja(ss, "REPORTE_DEUDA_REAL");
+    unidades.forEach(id => {
+      let sumaCargosUnidad = 0;
+      filasExcel.push([`Departamento ${id}`, ""]);
+      
+      deudasPorUnidad[id].forEach(item => { 
+        sumaCargosUnidad += item.monto; 
+        filasExcel.push([item.concepto, item.monto]);
+      });
 
-  let msgExterno = "Sincronización no solicitada.";
-  if (sincronizarExterno) {
-    try {
-      const ssExterno = SpreadsheetApp.openById(ID_ARCHIVO_EXTERNO);
-      escribirEnHoja(ssExterno, "REPORTE_DEUDA_REAL");
-      msgExterno = "Sincronización con Comité Exitosa.";
-    } catch (e) {
-      msgExterno = "Error en archivo externo: " + e.message;
+      const saldoAFavorUnidad = anticipos[id] || 0;
+      const totalRealUnidad = Math.max(0, sumaCargosUnidad - saldoAFavorUnidad);
+
+      // Sumamos al Excel si hay saldo a favor
+      if (saldoAFavorUnidad > 0) {
+        filasExcel.push(["Subtotal Cargos Pendientes", sumaCargosUnidad]);
+        filasExcel.push(["(-) SALDO A FAVOR DISPONIBLE", -saldoAFavorUnidad]);
+      }
+      filasExcel.push([`TOTAL REAL A PAGAR ${id}`, totalRealUnidad]);
+      filasExcel.push(["", ""]);
+
+      // Sumar a los Grandes Totales de arriba
+      granTotalDeudasBruto += sumaCargosUnidad;
+      granTotalAbonosFavor += saldoAFavorUnidad;
+      granTotalNetoPagar += totalRealUnidad;
+
+      // Si hay deuda real, lo metemos al ranking
+      if (totalRealUnidad > 0) {
+        rankingReal.push({id: id, total: totalRealUnidad});
+      }
+
+      // Desglose para dibujar las tarjetitas del PDF
+      desgloseDetallado.push({
+        id: id,
+        deudaBruta: sumaCargosUnidad,
+        abonoFavor: saldoAFavorUnidad,
+        netoPagar: totalRealUnidad,
+        detalles: deudasPorUnidad[id]
+      });
+    });
+
+    // Terminar de armar Excel (Totales y Ranking)
+    filasExcel.push(["---------------------------------------", ""]);
+    filasExcel.push(["GRAN TOTAL RECUPERABLE", granTotalNetoPagar]);
+    filasExcel.push(["---------------------------------------", ""]);
+    filasExcel.push(["", ""]);
+
+    // Ordenar ranking de mayor a menor deuda
+    rankingReal.sort((a, b) => b.total - a.total);
+    
+    filasExcel.push(["RANKING DE DEUDORES (MAYOR A MENOR)", ""]);
+    rankingReal.forEach(item => {
+      filasExcel.push([`Depto ${item.id}`, item.total]);
+    });
+
+    // 5. Escribir y dar formato al Excel
+    const escribirEnHoja = (targetSS, nombre) => {
+      let sheet = targetSS.getSheetByName(nombre) || targetSS.insertSheet(nombre);
+      sheet.clear();
+      if (filasExcel.length > 0) {
+        sheet.getRange(1, 1, filasExcel.length, 2).setValues(filasExcel);
+        sheet.setColumnWidth(1, 350);
+        sheet.getRange(1, 2, filasExcel.length, 1).setNumberFormat("$#,##0.00");
+        
+        for (let i = 0; i < filasExcel.length; i++) {
+          let t = String(filasExcel[i][0]);
+          if (t.startsWith("Departamento")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#D9EAD3");
+          if (t.startsWith("TOTAL REAL")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#FFF2CC");
+          if (t.includes("(-) SALDO")) sheet.getRange(i+1, 1, 1, 2).setFontColor("green").setFontStyle("italic");
+        }
+      }
+    };
+
+    // Actualizar Excel Local
+    escribirEnHoja(ss, "REPORTE_DEUDA_REAL");
+
+    // Actualizar Excel Externo (Si está activado el Switch)
+    let msgExterno = "Sincronización omitida.";
+    if (sincronizarExterno) {
+      try {
+        const ssExterno = SpreadsheetApp.openById(ID_ARCHIVO_EXTERNO);
+        escribirEnHoja(ssExterno, "REPORTE_DEUDA_REAL");
+        msgExterno = "Sincronización con Comité Exitosa.";
+      } catch (e) {
+        msgExterno = "Error de permisos al sincronizar archivo externo.";
+      }
     }
+
+    // EL PAQUETE COMPLETO PARA QUE EL HTML NO FALLE
+    return {
+      success: true,
+      totalesGlobales: {
+        deudaBruta: granTotalDeudasBruto,
+        abonosFavor: granTotalAbonosFavor,
+        netoPagar: granTotalNetoPagar
+      },
+      ranking: rankingReal,
+      desglose: desgloseDetallado,
+      msgExterno: msgExterno
+    };
+
+  } catch (error) {
+    return { success: false, message: "Error del servidor: " + error.toString() };
   }
-
-  return {
-    success: true,
-    granTotal: granTotalCondominio,
-    ranking: rankingReal,
-    desglose: desgloseParaPDF,
-    msgExterno: msgExterno
-  };
 }
 
 
+
+//// REPORTES ADMINISTRADOR 
+
+/**
+ * LÓGICA DE SERVIDOR (.gs)
+ * Genera el PDF para una sola unidad para evitar exceder límites de tiempo.
+ */
+function generarPDFAdministrador(idUnidad, htmlTabla) {
+  const nombreArchivo = "Estado_Cuenta_" + idUnidad + ".pdf";
+  const estilos = `
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
+      .salto-pagina { page-break-after: always; }
+      .tabla-contable { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9px; }
+      .tabla-contable th, .tabla-contable td { border: 1px solid #9ca3af; padding: 6px; text-align: left; }
+      .tabla-contable th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+      .grid-3 { display: flex; width: 100%; gap: 10px; margin-bottom: 20px; }
+      .caja { border: 1px solid #d1d5db; padding: 10px; text-align: center; flex: 1; background: #f9fafb; border-radius: 4px; }
+      .caja-roja { border: 2px solid #ef4444; background: #fef2f2; color: #b91c1c; }
+      .caja-azul { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e40af; }
+      h1 { font-size: 18px; margin: 0; text-transform: uppercase; }
+      h2 { font-size: 12px; color: #4b5563; margin: 0; }
+    </style>
+  `;
+  const htmlFinal = estilos + htmlTabla;
+  const blob = HtmlService.createHtmlOutput(htmlFinal).getAs('application/pdf').setName(nombreArchivo);
+  return Utilities.base64Encode(blob.getBytes());
+}
+
+
+/**
+ * RECORRE Y CALCULA LA DEUDA REAL AUTOMÁTICAMENTE
+ * (Compensa cargos pendientes contra abonos y saldos a favor)
+ * Integrado para Web App y Sincronización Externa.
+ */
+function generarReporteDeudaRealWebApp(sincronizarExterno) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ID_ARCHIVO_EXTERNO = "1yKAExPx4FbqIEj10t-ZZZFgp_ZIsodt3a5xPxCzsx8Y"; 
+
+    const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+    const saldosAFavorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+
+    if (!cargosSheet || !saldosAFavorSheet) {
+      return { success: false, message: "Error: No se encontró la hoja CARGOS_Y_DEUDAS o SALDOS_A_FAVOR." };
+    }
+
+    // 1. Cargar Saldos a Favor Externos (Hoja: SALDOS_A_FAVOR)
+    const anticiposExternos = {};
+    const anticiposData = saldosAFavorSheet.getDataRange().getValues().slice(1);
+    anticiposData.forEach(row => {
+      const id = String(row[0]).trim().toUpperCase(); 
+      const monto = Number(row[1]) || 0; 
+      if (id && monto > 0) anticiposExternos[id] = monto;
+    });
+
+    // 2. Lógica de Tiempos (Ignorar mes actual de forma estricta usando Zona Horaria)
+    const tz = ss.getSpreadsheetTimeZone();
+    const hoy = new Date();
+    const mesActualStr = Utilities.formatDate(hoy, tz, "MM"); 
+    const anioActualStr = Utilities.formatDate(hoy, tz, "yyyy"); 
+
+    const cargosData = cargosSheet.getDataRange().getValues().slice(1);
+    
+    // Cubetas de acumulación limpia por unidad
+    const deudasPendientesPorUnidad = {};
+    const abonosInternosPorUnidad = {};
+    const desgloseDetallesPorUnidad = {};
+
+    // 3. Procesar Matriz de Cargos y Deudas
+    cargosData.forEach(row => {
+      const id = String(row[1]).trim().toUpperCase();
+      if (!id) return;
+      
+      const concepto = String(row[2]).trim();
+      const fechaCelda = row[3];
+      let monto = Number(row[4]) || 0;
+      const estado = String(row[5]).trim().toLowerCase();
+
+      // Validar si pertenece al mes en curso
+      let esMesActual = false;
+      if (fechaCelda instanceof Date) {
+        const mesCargo = Utilities.formatDate(fechaCelda, tz, "MM");
+        const anioCargo = Utilities.formatDate(fechaCelda, tz, "yyyy");
+        esMesActual = (mesCargo === mesActualStr && anioCargo === anioActualStr);
+      }
+
+      // Regla de Oro: El mes actual no se toca en este reporte
+      if (esMesActual) return;
+
+      // Inicializar las propiedades si no existen
+      if (!deudasPendientesPorUnidad[id]) deudasPendientesPorUnidad[id] = 0;
+      if (!abonosInternosPorUnidad[id]) abonosInternosPorUnidad[id] = 0;
+      if (!desgloseDetallesPorUnidad[id]) desgloseDetallesPorUnidad[id] = [];
+
+      const conceptoUpper = concepto.toUpperCase();
+
+      // SI ES UN ABONO O NOTA DE CRÉDITO REGISTRADA EN LA HOJA DE CARGOS
+      if (conceptoUpper.includes("PAGO") || conceptoUpper.includes("ABONO") || monto < 0) {
+        const abonoLimpio = Math.abs(monto);
+        abonosInternosPorUnidad[id] += abonoLimpio;
+        desgloseDetallesPorUnidad[id].push({ concepto: `(-) Abono/Crédito: ${concepto}`, monto: -abonoLimpio });
+      } 
+      // SI ES UN CARGO PENDIENTE NORMAL
+      else if (estado !== "pagado") {
+        deudasPendientesPorUnidad[id] += monto;
+        desgloseDetallesPorUnidad[id].push({ concepto: concepto, monto: monto });
+      }
+    });
+
+    // Obtener lista única de unidades involucradas y ordenarlas
+    const unidades = Object.keys(desgloseDetallesPorUnidad).sort();
+    
+    // Arrays de salida estructurada
+    const desgloseDetallado = [];
+    const rankingReal = [];
+    const filasExcel = [];
+    
+    let granTotalDeudasBruto = 0;
+    let granTotalAbonosFavor = 0;
+    let granTotalNetoPagar = 0;
+
+    // 4. Ejecución del Cruce de Saldos (Compensación Automática)
+    unidades.forEach(id => {
+      const deudasBrutas = deudasPendientesPorUnidad[id] || 0;
+      const abonosInternos = abonosInternosPorUnidad[id] || 0;
+      const saldoFavorExterno = anticiposExternos[id] || 0;
+
+      // El total acumulado real que tiene a favor la unidad
+      const totalCreditoDisponible = abonosInternos + saldoFavorExterno;
+      
+      // Cálculo Matemático Neto Automático
+      const deudaNetaReal = Math.max(0, deudasBrutas - totalCreditoDisponible);
+      const saldoFavorRemanente = Math.max(0, totalCreditoDisponible - deudasBrutas);
+
+      // Si la unidad ya no debe nada (deuda real es 0), no se mete al listado de cobros
+      if (deudaNetaReal === 0 && deudasBrutas > 0) {
+        // Opcional: Se registra en el desglose interno para la Web App como libre de deuda
+        desgloseDetallado.push({
+          id: id,
+          deudaBruta: 0,
+          abonoFavor: saldoFavorRemanente,
+          netoPagar: 0,
+          detalles: [{ concepto: "Al corriente / Saldado con excedentes", monto: 0 }]
+        });
+        return; // Salta al siguiente departamento (Automatización Completa)
+      }
+
+      // Si tiene deuda neta real mayor a cero, construimos sus filas de reporte
+      if (deudaNetaReal > 0) {
+        filasExcel.push([`Departamento ${id}`, ""]);
+        
+        desgloseDetallesPorUnidad[id].forEach(item => {
+          filasExcel.push([item.concepto, item.monto]);
+        });
+
+        if (saldoFavorExterno > 0) {
+          filasExcel.push(["Subtotal Cargos Sin Contabilizar", deudasBrutas - abonosInternos]);
+          filasExcel.push(["(-) SALDO A FAVOR DISPONIBLE (HOJA EXTERNA)", -saldoFavorExterno]);
+        }
+        
+        filasExcel.push([`TOTAL REAL A PAGAR ${id}`, deudaNetaReal]);
+        filasExcel.push(["", ""]);
+
+        // Sumar a los Acumuladores Globales del Condominio
+        granTotalDeudasBruto += deudasBrutas;
+        granTotalAbonosFavor += saldoFavorExterno;
+        granTotalNetoPagar += deudaNetaReal;
+
+        rankingReal.push({ id: id, total: deudaNetaReal });
+
+        desgloseDetallado.push({
+          id: id,
+          deudaBruta: deudasBrutas - abonosInternos,
+          abonoFavor: saldoFavorExterno,
+          netoPagar: deudaNetaReal,
+          detalles: desgloseDetallesPorUnidad[id]
+        });
+      }
+    });
+
+    // 5. Dar salida al Bloque Final del Archivo Excel (Ranking y Totales)
+    filasExcel.push(["---------------------------------------", ""]);
+    filasExcel.push(["GRAN TOTAL RECUPERABLE CONDOMINIO", granTotalNetoPagar]);
+    filasExcel.push(["---------------------------------------", ""]);
+    filasExcel.push(["", ""]);
+
+    rankingReal.sort((a, b) => b.total - a.total);
+    filasExcel.push(["RANKING DE DEUDORES (MAYOR A MENOR)", ""]);
+    rankingReal.forEach(item => {
+      filasExcel.push([`Depto ${item.id}`, item.total]);
+    });
+
+    // Función auxiliar de impresión limpia en hojas
+    const escribirEnHoja = (targetSS, nombre) => {
+      let sheet = targetSS.getSheetByName(nombre) || targetSS.insertSheet(nombre);
+      sheet.clear();
+      if (filasExcel.length > 0) {
+        sheet.getRange(1, 1, filasExcel.length, 2).setValues(filasExcel);
+        sheet.setColumnWidth(1, 350);
+        sheet.getRange(1, 2, filasExcel.length, 1).setNumberFormat("$#,##0.00");
+        
+        for (let i = 0; i < filasExcel.length; i++) {
+          let t = String(filasExcel[i][0]);
+          if (t.startsWith("Departamento")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#D9EAD3");
+          if (t.startsWith("TOTAL REAL")) sheet.getRange(i+1, 1, 1, 2).setFontWeight("bold").setBackground("#FFF2CC");
+          if (t.includes("(-) SALDO")) sheet.getRange(i+1, 1, 1, 2).setFontColor("green").setFontStyle("italic");
+        }
+      }
+    };
+
+    // Imprimir en la base de datos de origen
+    escribirEnHoja(ss, "REPORTE_DEUDA_REAL");
+
+    // Enviar datos al espejo externo de administración
+    let msgExterno = "Sincronización omitida por parámetros.";
+    if (sincronizarExterno) {
+      try {
+        const ssExterno = SpreadsheetApp.openById(ID_ARCHIVO_EXTERNO);
+        escribirEnHoja(ssExterno, "REPORTE_DEUDA_REAL");
+        msgExterno = "Sincronización con Comité Exitosa de forma correcta.";
+      } catch (e) {
+        msgExterno = "Error de permisos/ID al sincronizar archivo externo con Comité.";
+      }
+    }
+
+    // Regresar respuesta estructurada para el FrontEnd de tu Web App
+    return {
+      success: true,
+      totalesGlobales: {
+        deudaBruta: granTotalDeudasBruto,
+        abonosFavor: granTotalAbonosFavor,
+        netoPagar: granTotalNetoPagar
+      },
+      ranking: rankingReal,
+      desglose: desgloseDetallado,
+      msgExterno: msgExterno
+    };
+
+  } catch (error) {
+    return { success: false, message: "Error crítico del servidor: " + error.toString() };
+  }
+}
+
+function generarEstadoCuentaWebApp(targetUnit, crearExcel) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cargosSheet = ss.getSheetByName("CARGOS_Y_DEUDAS");
+  const pagosSheet = ss.getSheetByName("REGISTRO_PAGOS");
+  const favorSheet = ss.getSheetByName("SALDOS_A_FAVOR");
+  const tz = ss.getSpreadsheetTimeZone(); 
+
+  if (!cargosSheet || !pagosSheet || !favorSheet) return { success: false, message: "Faltan hojas." };
+
+  // 1. Mapa de Saldos en Sistema
+  const mapaSaldosSistema = {};
+  favorSheet.getDataRange().getValues().slice(1).forEach(row => {
+    const id = String(row[0]).trim().toUpperCase();
+    if (id) mapaSaldosSistema[id] = Number(row[1]) || 0;
+  });
+
+  const cargos = cargosSheet.getDataRange().getValues().slice(1);
+  const pagos = pagosSheet.getDataRange().getValues().slice(1);
+  let todasTransacciones = [];
+  let ultimoSobranteUnidad = {}; 
+
+  // 2. Cargar Cargos (CORRECCIÓN: Reconstrucción de Cargos y Abonos Internos)
+  cargos.forEach(row => {
+    const idUnidad = String(row[1]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+    
+    let conceptoCargo = String(row[2]);
+    let montoCargo = Number(row[4]) || 0;
+    let pagoAplicadoInterno = 0;
+
+    // A. Filtrar y reconstruir AUTO-PAGOS PARCIALES
+    const matchParcial = conceptoCargo.match(/(?:AUTOPAGOPARCIAL|AUTOPAGO-PARCIAL|ABONO)-\$?([\d,.]+)/i);
+    if (matchParcial) {
+       let descontado = Number(matchParcial[1].replace(/,/g, ''));
+       montoCargo += descontado; // Restaura el cargo a su costo original (Ej: 400)
+       pagoAplicadoInterno = descontado; // Contabiliza la amortización sin inyectar dinero duplicado
+    }
+
+    // B. Filtrar AUTO-PAGOS TOTALES
+    const matchTotal = conceptoCargo.match(/(?:AUTOPAGO-TOTAL|SALDO-TOTAL)/i);
+    if (matchTotal) {
+       pagoAplicadoInterno = montoCargo; // Contabiliza el 100% de la amortización
+    }
+
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[3]), 
+      concepto: conceptoCargo,
+      cargo: montoCargo, 
+      pagoVisual: 0,
+      pagoAplicado: pagoAplicadoInterno
+    });
+  });
+
+  // 3. Cargar Pagos Reales
+  pagos.forEach(row => {
+    const idUnidad = String(row[2]).trim().toUpperCase();
+    if (targetUnit !== 'TODOS' && idUnidad !== targetUnit) return;
+
+    const montoRecibido = Number(row[4]) || 0; 
+    const montoAplicado = Number(row[5]) || 0; 
+    const totalSobranteH = Number(row[7]) || 0; 
+    
+    ultimoSobranteUnidad[idUnidad] = totalSobranteH;
+
+    todasTransacciones.push({
+      unidad: idUnidad, 
+      fecha: new Date(row[1]), 
+      concepto: `PAGO: ${String(row[9] || "ANTICIPO / SOBRANTE")}`,
+      cargo: 0, 
+      pagoVisual: montoRecibido, 
+      pagoAplicado: montoAplicado 
+    });
+  });
+
+  const unidadesUnicas = [...new Set(todasTransacciones.map(t => t.unidad))].sort();
+  const detallesParaFront = [];
+  const resumenParaFront = [];
+
+  unidadesUnicas.forEach(id => {
+    const movimientos = todasTransacciones
+      .filter(t => t.unidad === id)
+      .sort((a, b) => a.fecha - b.fecha);
+
+    let sumaCargos = 0, sumaPagosAplicados = 0, saldoAcumulado = 0;
+    const historialFinal = [];
+
+    movimientos.forEach(m => {
+      sumaCargos += m.cargo;
+      sumaPagosAplicados += m.pagoAplicado;
+
+      if (m.cargo === 0 && m.pagoVisual === 0) {
+        return; 
+      }
+
+      saldoAcumulado = saldoAcumulado + m.cargo - m.pagoVisual;
+
+      historialFinal.push({
+        fecha: Utilities.formatDate(m.fecha, tz, "dd/MM/yyyy"),
+        concepto: m.concepto, 
+        cargo: m.cargo, 
+        pago: m.pagoVisual, 
+        saldo: saldoAcumulado
+      });
+    });
+
+    const sobranteH = ultimoSobranteUnidad[id] || 0;
+    const saldoSis = mapaSaldosSistema[id] || 0;
+
+    let deudaBruta = sumaCargos - sumaPagosAplicados;
+    let deudaReal = deudaBruta - saldoSis;
+    let deudaNetaFinal = deudaReal > 0 ? deudaReal : 0;
+
+    const dataObj = {
+      unidad: id,
+      totalCargos: sumaCargos,
+      totalPagos: sumaPagosAplicados,
+      saldoAFavor: sobranteH, 
+      saldoSistema: saldoSis,     
+      deudaNeta: deudaNetaFinal, 
+      historial: historialFinal
+    };
+
+    resumenParaFront.push(dataObj);
+    detallesParaFront.push(dataObj);
+  });
+
+  return {
+    success: true,
+    isTodos: (targetUnit === 'TODOS'),
+    resumen: resumenParaFront,
+    detalles: detallesParaFront
+  };
+}

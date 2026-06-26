@@ -2,7 +2,7 @@
  * Oculta o Muestra las hojas sensibles del sistema.
  * Solo accesible para el rol ADMIN.
  */
-function toggleSheets() {
+function toggleSheetsXX() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
   

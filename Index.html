@@ -138,7 +138,7 @@
                         <div class="icon-box bg-red-50 text-red-500"><i class="fas fa-money-check-alt fa-lg"></i></div>
                         <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Registrar Egresos</p><p class="text-[10px] text-gray-400 uppercase">Control de gastos</p></div>
                     </div>
-                    <div onclick="google.script.run.toggleSheets()" class="bg-slate-800 p-4 rounded-xl shadow-sm menu-card flex items-center" data-roles="ADMIN">
+                    <div onclick="google.script.run.toggleSheets()" class="bg-slate-800 p-4 rounded-xl shadow-sm menu-card flex items-center cursor-pointer" data-roles="ADMIN">
                         <div class="icon-box bg-slate-700 text-white"><i class="fas fa-eye fa-lg"></i></div>
                         <div class="ml-4"><p class="font-bold text-white text-sm">Ocultar/Mostrar BD</p><p class="text-[10px] text-slate-400 uppercase">Seguridad Sheets</p></div>
                     </div>
@@ -152,9 +152,19 @@
             <section data-roles="ADMIN">
                 <h3 class="text-sm font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center"><i class="fas fa-star mr-2 text-yellow-500"></i> Extras</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div onclick="google.script.run.reporteSaldoDetalladoPorConcepto_Fechas()" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center">
+                    <div onclick="google.script.run.reporteSaldoDetalladoPorConcepto_Fechas()" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center cursor-pointer hover:shadow-md">
                         <div class="icon-box bg-sky-100 text-sky-500"><i class="fas fa-list-ul fa-lg"></i></div>
                         <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Saldo por Concepto</p><p class="text-[10px] text-gray-400 uppercase">Analítico de deudas</p></div>
+                    </div>
+
+                    <div onclick="abrirModulo('Form_Configuracion')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center cursor-pointer hover:shadow-md">
+                        <div class="icon-box bg-slate-100 text-slate-700"><i class="fas fa-tools fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Configuración Central</p><p class="text-[10px] text-gray-400 uppercase">Cobros, Tasas y Catálogo</p></div>
+                    </div>
+
+                    <div onclick="abrirModulo('Form_EditorCargos')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 menu-card flex items-center cursor-pointer hover:shadow-md">
+                        <div class="icon-box bg-indigo-100 text-indigo-600"><i class="fas fa-hand-holding-usd fa-lg"></i></div>
+                        <div class="ml-4"><p class="font-bold text-gray-800 text-sm">Editor de Cargos</p><p class="text-[10px] text-gray-400 uppercase">Convenios y Ajustes</p></div>
                     </div>
                 </div>
             </section>
@@ -223,12 +233,13 @@
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-workspace').classList.remove('hidden');
             document.getElementById('workspace-title').innerText = nombreHtml.replace('Form_', '').replace('_', ' ');
-            document.getElementById('app-container').innerHTML = `<iframe id="moduloIframe" src="${WEBAPP_URL}?v=${nombreHtml}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
             
-            const iframe = document.getElementById('moduloIframe');
-            iframe.onload = function() {
-                if(usuarioActual) iframe.contentWindow.postMessage({ usuarioActivo: usuarioActual.nombre }, "*");
-            };
+            let urlFinal = `${WEBAPP_URL}?v=${nombreHtml}`;
+            if (usuarioActual && usuarioActual.nombre) {
+                urlFinal += `&u=${encodeURIComponent(usuarioActual.nombre)}`;
+            }
+            
+            document.getElementById('app-container').innerHTML = `<iframe id="moduloIframe" src="${urlFinal}" class="w-full h-full border-0 rounded-xl shadow-lg bg-white"></iframe>`;
         }
 
         function volverAlMenu() {

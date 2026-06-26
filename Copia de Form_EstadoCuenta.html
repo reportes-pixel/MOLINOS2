@@ -2,7 +2,6 @@
 <html>
 <head>
     <base target="_top">
-    <script src="https://code.google.com/p/jquery/"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -29,7 +28,7 @@
 
     <div id="loader" class="hidden fixed inset-0 bg-white/90 z-[9999] flex flex-col items-center justify-center">
         <i class="fas fa-spinner fa-spin text-slate-700 fa-3x mb-4"></i>
-        <p class="text-slate-700 font-bold">Procesando auditoría y ordenando relación de deudores...</p>
+        <p class="text-slate-900 font-bold">Procesando auditoría y recalculando saldos reales...</p>
     </div>
 
     <div id="pantallaBusqueda" class="max-w-md mx-auto bg-white rounded-xl shadow-md border-t-4 border-slate-800 p-6 no-print">
@@ -74,7 +73,7 @@
             $('#unidadSelect').select2({ placeholder: "Cargando..." });
             google.script.run.withSuccessHandler(unidades => {
                 const select = $('#unidadSelect');
-                select.empty().append(new Option("TODOS (Resumen de Morosidad + Detalles)", "TODOS"));
+                select.empty().append(new Option("TODOS (Resumen Global + Detallado)", "TODOS"));
                 unidades.forEach(u => select.append(new Option(`Unidad: ${u}`, u)));
                 select.select2();
             }).obtenerUnidadesParaEstadoCuenta();
@@ -85,6 +84,7 @@
             if (!unidad) return;
             $('#loader').removeClass('hidden');
             
+            // Ocultar PDF si es masivo para evitar caída del servidor
             if(unidad === "TODOS") { $('#btnDescargarPDF').addClass('hidden'); } 
             else { $('#btnDescargarPDF').removeClass('hidden'); }
 
@@ -103,44 +103,33 @@
             const formatCurr = (v) => `$${Number(v || 0).toLocaleString('es-MX', {minimumFractionDigits: 2})}`;
             let htmlContenido = "";
 
-            // 1. RESUMEN GLOBAL ORDENADO DE MAYOR A MENOR ADEUDO
+            // 1. RESUMEN GLOBAL CORREGIDO (CALCULO DESDE HISTORIAL)
             if (res.isTodos) {
-                // Clonamos la lista y la ordenamos basándonos en la deuda neta calculada por el servidor
-                let listaOrdenadaAdeudos = [...res.detalles].sort((a, b) => b.deudaNeta - a.deudaNeta);
-
-                let filasResumen = listaOrdenadaAdeudos.map(d => {
+                let filasResumen = res.detalles.map(d => {
                     const ultimoAcumulado = d.historial.length > 0 ? d.historial[d.historial.length - 1].saldo : 0;
-                    const deudaReal = d.deudaNeta; // Usamos el dato maestro recalculado
+                    const deudaReal = ultimoAcumulado > 0 ? ultimoAcumulado : 0;
                     const saldoFavorReal = ultimoAcumulado < 0 ? Math.abs(ultimoAcumulado) : 0;
 
-                    // Generar etiqueta de acción para corte de servicios
-                    const claseFila = deudaReal > 0 ? 'bg-red-50/50 font-medium text-red-900' : '';
-                    const badgeAccion = deudaReal > 0 
-                        ? `<span class="bg-red-100 text-red-800 text-[10px] font-black px-2 py-0.5 rounded border border-red-200 inline-flex items-center gap-1 uppercase"><i class="fas fa-lock text-[9px]"></i>Desactivar</span>`
-                        : `<span class="bg-green-100 text-green-800 text-[10px] font-black px-2 py-0.5 rounded border border-green-200 inline-flex items-center gap-1 uppercase"><i class="fas fa-unlock text-[9px]"></i>Activo</span>`;
-
                     return `
-                        <tr class="border-b hover:bg-gray-50 ${claseFila}">
-                            <td class="text-center font-bold text-gray-800 py-2">${d.unidad}</td>
-                            <td class="text-right py-2">${formatCurr(d.totalCargos)}</td>
-                            <td class="text-right text-blue-600 py-2">${saldoFavorReal > 0 ? formatCurr(saldoFavorReal) : '-'}</td>
-                            <td class="text-right font-bold text-red-600 py-2">${deudaReal > 0 ? formatCurr(deudaReal) : '-'}</td>
-                            <td class="text-center py-2 no-print">${badgeAccion}</td>
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="text-center font-bold text-gray-800">${d.unidad}</td>
+                            <td class="text-right">${formatCurr(d.totalCargos)}</td>
+                            <td class="text-right text-blue-600 font-bold">${formatCurr(saldoFavorReal)}</td>
+                            <td class="text-right font-bold text-red-600">${formatCurr(deudaReal)}</td>
                         </tr>`;
                 }).join('');
 
                 htmlContenido += `
                 <div class="salto-pagina">
-                    <h1 class="text-2xl font-black text-gray-900 uppercase mb-1">Resumen de Auditoría y Control de Servicios</h1>
-                    <p class="text-sm text-gray-500 mb-6">Listado ordenado jerárquicamente de mayor a menor adeudo neto para suspensión de servicios y tags.</p>
+                    <h1 class="text-2xl font-black text-gray-900 uppercase mb-2">Resumen General de Auditoría</h1>
+                    <p class="text-sm text-gray-500 mb-6">Saldos finales calculados según historial real de movimientos.</p>
                     <table class="tabla-contable">
                         <thead>
                             <tr>
                                 <th class="text-center">Unidad</th>
                                 <th class="text-right">Total Cargos</th>
-                                <th class="text-right">Saldo a Favor</th>
+                                <th class="text-right">Tu Saldo a Favor</th>
                                 <th class="text-right">Deuda Pendiente</th>
-                                <th class="text-center no-print">Estatus / Acción</th>
                             </tr>
                         </thead>
                         <tbody>${filasResumen}</tbody>
@@ -148,10 +137,10 @@
                 </div>`;
             }
 
-            // 2. DETALLE INDIVIDUAL (Mantiene el orden correlativo de las hojas)
+            // 2. DETALLE INDIVIDUAL (3 COLUMNAS CORREGIDAS)
             res.detalles.forEach((d, idx) => {
                 const ultimoAcumulado = d.historial.length > 0 ? d.historial[d.historial.length - 1].saldo : 0;
-                const deudaFinal = d.deudaNeta;
+                const deudaFinal = ultimoAcumulado > 0 ? ultimoAcumulado : 0;
                 const saldoFavorFinal = ultimoAcumulado < 0 ? Math.abs(ultimoAcumulado) : 0;
 
                 let filasHist = d.historial.map(t => `

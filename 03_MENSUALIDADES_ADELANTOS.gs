@@ -25,7 +25,7 @@ function generarCargosMensuales() {
     }
 
     const montoNormalBase = Number(config.MENSUALIDAD_BASE) || 0;
-    const montoPPBase = Number(config.MENSUALIDA_PRONTO_PAGO) || 0;
+    const montoPPBase = Number(config.MENSUALIDAD_PRONTO_PAGO) || 0;
     const hoy = new Date();
 
     const prompt = ui.prompt("Generar Cargos MOLINOS", "¿Mes/Año? (Ej: 03/2026):", ui.ButtonSet.OK_CANCEL);
@@ -122,12 +122,12 @@ function aplicarSaldo(id, montoACobrar, mapaSaldos, saldosSheet) {
             mapaSaldos[id].monto -= montoACobrar;
             resultado.estado = "Pagado";
             resultado.montoFinal = montoACobrar;
-            resultado.pagoRef = "SALDO-TOTAL";
+            resultado.pagoRef = "AUTOPAGO-TOTAL";
         } else {
             mapaSaldos[id].monto = 0;
             resultado.estado = "Pendiente";
             resultado.montoFinal = montoACobrar - disponible;
-            resultado.pagoRef = `ABONO-$${disponible.toFixed(2)}`;
+            resultado.pagoRef = `AUTOPAGOPARCIAL-$${disponible.toFixed(2)}`;
         }
         // Actualizar la celda físicamente
         saldosSheet.getRange(mapaSaldos[id].fila, 2).setValue(mapaSaldos[id].monto);
@@ -254,7 +254,7 @@ function procesarAdelantoMensualidades(data) {
         }
 
         // ⭐️ REGLA DE ORO: Siempre a precio de Pronto Pago
-        const montoPPBase = Number(config.MENSUALIDA_PRONTO_PAGO) || 0;
+        const montoPPBase = Number(config.MENSUALIDAD_PRONTO_PAGO) || 0;
         if (montoPPBase <= 0) {
             return { success: false, message: "El monto de Pronto Pago no está configurado correctamente." };
         }
